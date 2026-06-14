@@ -883,30 +883,40 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
               <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
                 fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
             ))}
-            {/* Open string circles left of nut */}
-            <circle cx={LEFT-13} cy={TOP+0*strGap} r={7} fill="none" stroke={C.sage} strokeWidth={2}/>
-            <text x={LEFT-13} y={TOP+0*strGap+4} textAnchor="middle" fontSize={9} fill={C.sage} fontFamily="monospace" fontWeight="700">0</text>
-            <circle cx={LEFT-13} cy={TOP+5*strGap} r={7} fill="none" stroke={C.sage} strokeWidth={2}/>
-            <text x={LEFT-13} y={TOP+5*strGap+4} textAnchor="middle" fontSize={9} fill={C.sage} fontFamily="monospace" fontWeight="700">0</text>
+            {/* Per-string markers left of nut: O=open, X=muted, nothing=fretted */}
+            {[
+              {s:0, type:"open"},
+              {s:1, type:"muted"},
+              {s:2, type:"muted"},
+              {s:3, type:"muted"},
+              {s:4, type:"open"},
+              {s:5, type:"open"},
+            ].map(({s,type})=>{
+              const cy = TOP+s*strGap;
+              const cx = LEFT-16;
+              if(type==="open") return (
+                <g key={s}>
+                  <circle cx={cx} cy={cy} r={7} fill="none" stroke={C.sage} strokeWidth={2}/>
+                  <text x={cx} y={cy+4} textAnchor="middle" fontSize={9}
+                    fill={C.sage} fontFamily="monospace" fontWeight="700">0</text>
+                </g>
+              );
+              return (
+                <g key={s}>
+                  <line x1={cx-5} y1={cy-5} x2={cx+5} y2={cy+5} stroke={C.coral} strokeWidth={2}/>
+                  <line x1={cx+5} y1={cy-5} x2={cx-5} y2={cy+5} stroke={C.coral} strokeWidth={2}/>
+                </g>
+              );
+            })}
             {/* Fretted dots */}
-            {[{s:0,f:3,n:"G"},{s:1,f:2,n:"A"},{s:4,f:2,n:"B"},{s:5,f:3,n:"G"}].map(({s,f,n},i)=>{
+            {[{s:0,f:3,n:"3"},{s:1,f:2,n:"2"},{s:4,f:2,n:"1"},{s:5,f:3,n:"4"}].map(({s,f,n},i)=>{
               const cx=LEFT+(f-0.5)*fretGap, cy=TOP+s*strGap;
               return (
                 <g key={i}>
                   <circle cx={cx} cy={cy} r={14} fill="rgba(212,168,71,0.12)"/>
                   <circle cx={cx} cy={cy} r={11} fill={C.amber}/>
-                  <text x={cx} y={cy+5} textAnchor="middle" fontSize={12}
+                  <text x={cx} y={cy+5} textAnchor="middle" fontSize={13}
                     fill="#1A1A1F" fontWeight="900" fontFamily="monospace">{n}</text>
-                </g>
-              );
-            })}
-            {/* Muted strings */}
-            {[2,3].map(s=>{
-              const cy=TOP+s*strGap;
-              return (
-                <g key={s}>
-                  <line x1={LEFT-18} y1={cy-6} x2={LEFT-8} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
-                  <line x1={LEFT-8}  y1={cy-6} x2={LEFT-18} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
                 </g>
               );
             })}
