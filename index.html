@@ -1177,6 +1177,7 @@ function GuitarTuner({ onBack, onGoTuner, onGoBasics, onGoSongSearch }) {
   const [lockedString, setLockedString] = useState(null);
   const [tuned, setTuned] = useState({});
   const [currentStringIdx, setCurrentStringIdx] = useState(0);
+  const [readyToMark, setReadyToMark] = useState(false);
   const ctxRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef = useRef(null);
@@ -1227,6 +1228,7 @@ function GuitarTuner({ onBack, onGoTuner, onGoBasics, onGoSongSearch }) {
   useEffect(()=>()=>stopMic(),[]);
 
   const inTune = Math.abs(cents) <= 8;
+  useEffect(()=>{ if(inTune && detectedFreq>0 && !tuned[activeString?.note]) setReadyToMark(true); },[inTune, detectedFreq]);
   const slightlyOff = Math.abs(cents) <= 20;
   const needleAngle = Math.max(-45, Math.min(45, cents * 0.9));
   const needleColor = inTune ? C.sage : slightlyOff ? C.amber : C.coral;
@@ -1320,7 +1322,7 @@ function GuitarTuner({ onBack, onGoTuner, onGoBasics, onGoSongSearch }) {
               const isActive = activeString && activeString.note===s.note;
               const isDone = tuned[s.note];
               return (
-                <button key={s.note} onClick={()=>{setLockedString(s);setCurrentStringIdx(i);}}
+                <button key={s.note} onClick={()=>{setLockedString(s);setCurrentStringIdx(i);setReadyToMark(false);}}
                   style={{flex:1,padding:"8px 4px",borderRadius:8,border:"1px solid "+(isDone?C.sage:isActive?C.amber:C.fret),
                     background:isDone?"rgba(107,143,110,0.15)":isActive?"rgba(212,168,71,0.1)":"transparent",
                     cursor:"pointer",fontFamily:"sans-serif",textAlign:"center",minWidth:44}}>
@@ -1390,9 +1392,10 @@ function GuitarTuner({ onBack, onGoTuner, onGoBasics, onGoSongSearch }) {
 
           {/* Mark tuned + Next */}
           <div style={{display:"flex",gap:10,marginBottom:12}}>
-            {detectedFreq>0 && inTune && (
+            {readyToMark && !tuned[activeString?.note] && (
               <button onClick={()=>{
                 setTuned(t=>({...t,[activeString.note]:true}));
+                setReadyToMark(false);
                 const nextIdx = currentStringIdx+1 < OPEN_STRINGS.length ? currentStringIdx+1 : currentStringIdx;
                 setCurrentStringIdx(nextIdx);
                 setLockedString(nextIdx!==currentStringIdx ? OPEN_STRINGS[nextIdx] : lockedString);
