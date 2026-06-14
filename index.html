@@ -7,13 +7,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #1A1A1F; font-family: sans-serif; }
-    input::placeholder { color: #9A9490; }
-    textarea::placeholder { color: #9A9490; }
-    p + p { margin-top: 10px; }
-  </style>
+  <style>* { box-sizing: border-box; margin: 0; padding: 0; } body { background: #1A1A1F; font-family: sans-serif; } input::placeholder { color: #9A9490; } textarea::placeholder { color: #9A9490; } p + p { margin-top: 10px; }</style>
 </head>
 <body>
   <div id="root"></div>
@@ -911,7 +905,7 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
         <div style={{position:"relative",display:"inline-block"}}>
           {/* Gold numbers above fingers - positioned to align with emoji fingertips */}
           <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",
-            gap:0,marginBottom:4,paddingLeft:18}}>
+            gap:0,marginBottom:4,paddingLeft:48}}>
             {[
               {num:"1", ml:0},
               {num:"2", ml:8},
@@ -926,11 +920,11 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
                   boxShadow:"0 0 10px rgba(212,168,71,0.4)"}}>
                   {num}
                 </div>
-                <div style={{width:2,height:8,background:"rgba(212,168,71,0.4)",margin:"2px auto 0"}}/>
+                <div style={{width:2,height:15,background:"rgba(212,168,71,0.4)",margin:"2px auto 0"}}/>
               </div>
             ))}
           </div>
-          <div style={{fontSize:140,lineHeight:1}}>🤚</div>
+          <div style={{fontSize:260,lineHeight:1}}>🤚</div>
         </div>
         <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:12,flexWrap:"wrap",paddingLeft:18}}>
           {[["1","Index"],["2","Middle"],["3","Ring"],["4","Pinky"]].map(([num,name])=>(
