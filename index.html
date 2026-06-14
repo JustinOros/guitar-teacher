@@ -510,41 +510,128 @@ const OPEN_NOTES = [
   {label:"G string",note:"G3"},{label:"B string",note:"B3"},{label:"High e string",note:"E4"},
 ];
 
-function OpenStringPractice({ detected, onTarget }) {
+function OpenStringPractice({ detected, onTarget, onComplete }) {
   const [idx, setIdx] = useState(0);
-  const [done, setDone] = useState({});
+  const [heard, setHeard] = useState(false);
+  const [doneSet, setDoneSet] = useState({});
+  const [finished, setFinished] = useState(false);
+  const [kudos] = useState(()=>{
+    const msgs = ["Great job!", "You nailed it!", "Awesome work!", "Sounding good!", "Perfect!", "Nice playing!"];
+    return msgs[Math.floor(Math.random()*msgs.length)];
+  });
 
-  useEffect(()=>{ onTarget(idx < OPEN_NOTES.length ? OPEN_NOTES[idx].note : null); },[idx]);
+  const current = OPEN_NOTES[idx];
 
   useEffect(()=>{
-    if (!detected || idx >= OPEN_NOTES.length) return;
-    if (detected === OPEN_NOTES[idx].note){
-      setDone(d=>({...d,[idx]:true}));
-      setTimeout(()=>setIdx(i=>i+1), 700);
+    if (!finished) onTarget(current ? current.note : null);
+  },[idx, finished]);
+
+  useEffect(()=>{
+    if (!detected || heard || finished || !current) return;
+    if (detected === current.note) setHeard(true);
+  },[detected, heard, finished, current]);
+
+  const handleNext = () => {
+    setDoneSet(d=>({...d,[idx]:true}));
+    setHeard(false);
+    if (idx + 1 >= OPEN_NOTES.length) {
+      setFinished(true);
+      onTarget(null);
+      if (onComplete) onComplete();
+    } else {
+      setIdx(i=>i+1);
     }
-  },[detected, idx]);
+  };
+
+  const NUM_FRETS=5, NS=6, W=320, H=200;
+  const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
+  const strGap=(BOT-TOP)/(NS-1);
+  const fretGap=(RIGHT-LEFT)/NUM_FRETS;
+  const STRING_LABELS=["e","B","G","D","A","E"];
 
   return (
-    <div style={{background:"#0E0E12",border:"1px dashed "+C.fret,borderRadius:12,padding:28,textAlign:"center",margin:"20px 0"}}>
-      {idx < OPEN_NOTES.length ? (
+    <div style={{margin:"20px 0"}}>
+      {!finished ? (
         <>
-          <div style={{fontSize:14,color:C.muted,marginBottom:6}}>Pluck this string:</div>
-          <div style={{fontSize:44,fontWeight:800,color:C.amber,lineHeight:1,margin:"8px 0"}}>{OPEN_NOTES[idx].label}</div>
-          <div style={{fontFamily:"monospace",fontSize:13,color:C.muted}}>Target: {OPEN_NOTES[idx].note}</div>
+          <div style={{background:"#0A0A0E",borderRadius:12,padding:"16px 6px",border:"1px solid "+(heard?C.sage:C.fret),marginBottom:12,transition:"border-color 0.4s"}}>
+            <div style={{textAlign:"center",marginBottom:10}}>
+              <div style={{fontSize:13,color:C.muted,marginBottom:4}}>Pluck this string:</div>
+              <div style={{fontSize:32,fontWeight:800,color:heard?C.sage:C.amber,lineHeight:1,transition:"color 0.3s"}}>{current.label}</div>
+              {!heard && <div style={{fontSize:12,color:C.muted,marginTop:4}}>Target: {current.note}</div>}
+              {heard && <div style={{fontSize:13,color:C.sage,fontWeight:600,marginTop:4}}>Heard it!</div>}
+            </div>
+            <svg width={W} height={H} style={{display:"block",margin:"0 auto"}}>
+              <line x1={LEFT} y1={TOP-2} x2={LEFT} y2={BOT+2} stroke={C.text} strokeWidth={3}/>
+              {Array.from({length:NUM_FRETS+1},(_,f)=>(
+                <line key={f} x1={LEFT+f*fretGap} y1={TOP} x2={LEFT+f*fretGap} y2={BOT} stroke={C.fret} strokeWidth={1}/>
+              ))}
+              {Array.from({length:NS},(_,s)=>{
+                const isTarget = s === current.note && false;
+                const strIdx = NS-1-s;
+                const targetStrIdx = OPEN_NOTES.indexOf(current);
+                const isHighlighted = (NS-1-s) === idx;
+                return (
+                  <g key={s}>
+                    {isHighlighted && (
+                      <rect x={LEFT} y={TOP+s*strGap-8} width={RIGHT-LEFT} height={16}
+                        fill={heard?"rgba(107,143,110,0.12)":"rgba(212,168,71,0.08)"} rx={4}/>
+                    )}
+                    <line x1={LEFT} y1={TOP+s*strGap} x2={RIGHT} y2={TOP+s*strGap}
+                      stroke={isHighlighted?(heard?C.sage:C.amber):C.string}
+                      strokeWidth={isHighlighted?(heard?3:2.5):(s===0?0.8:s===5?2:1.2)}
+                      style={{filter:isHighlighted?("drop-shadow(0 0 4px "+(heard?C.sage:C.amber)+")"):"none"}}/>
+                    <text x={LEFT-10} y={TOP+s*strGap+4} textAnchor="middle"
+                      fontSize={10} fill={isHighlighted?(heard?C.sage:C.amber):C.amber}
+                      fontFamily="monospace" fontWeight={isHighlighted?"800":"400"}>
+                      {STRING_LABELS[s]}
+                    </text>
+                    {doneSet[NS-1-s] && (
+                      <text x={RIGHT+10} y={TOP+s*strGap+4} textAnchor="middle"
+                        fontSize={12} fill={C.sage}>✓</text>
+                    )}
+                  </g>
+                );
+              })}
+              {Array.from({length:NUM_FRETS},(_,f)=>(
+                <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
+                  fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
+              ))}
+            </svg>
+          </div>
+
+          {heard && (
+            <button onClick={handleNext}
+              style={{width:"100%",padding:"13px",borderRadius:10,border:"2px solid "+C.sage,
+                background:C.sage,color:"#fff",fontFamily:"sans-serif",fontSize:15,
+                fontWeight:700,cursor:"pointer",marginBottom:8}}>
+              {idx + 1 >= OPEN_NOTES.length ? "All done! See how I did" : "Next string →"}
+            </button>
+          )}
+
+          <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginTop:8}}>
+            {OPEN_NOTES.map((s,i)=>(
+              <div key={i} style={{padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontSize:12,
+                border:"1px solid "+(doneSet[i]?C.sage:i===idx?C.amber:C.fret),
+                color:doneSet[i]?C.sage:i===idx?C.amber:C.muted,
+                background:doneSet[i]?"rgba(107,143,110,0.1)":i===idx?"rgba(212,168,71,0.1)":"transparent"}}>
+                {doneSet[i]?"✓":s.note}
+              </div>
+            ))}
+          </div>
         </>
       ) : (
-        <div style={{fontSize:18,fontWeight:600,color:C.sage}}>All 6 open strings done!</div>
-      )}
-      <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginTop:16}}>
-        {OPEN_NOTES.map((s,i)=>(
-          <div key={i} style={{padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontSize:12,
-            border:"1px solid "+(done[i]?C.sage:i===idx?C.amber:C.fret),
-            color:done[i]?C.sage:i===idx?C.amber:C.muted,
-            background:done[i]?"rgba(107,143,110,0.1)":i===idx?"rgba(212,168,71,0.1)":"transparent"}}>
-            {s.note}
+        <div style={{background:"#0A0A0E",borderRadius:12,padding:28,border:"1px solid "+C.sage,textAlign:"center"}}>
+          <div style={{fontSize:40,marginBottom:12}}>🎸</div>
+          <div style={{fontSize:22,fontWeight:800,color:C.sage,marginBottom:8}}>{kudos}</div>
+          <div style={{fontSize:14,color:C.muted}}>You just played all 6 open strings. Click Next to continue.</div>
+          <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginTop:16}}>
+            {OPEN_NOTES.map((s,i)=>(
+              <div key={i} style={{padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontSize:12,
+                border:"1px solid "+C.sage,color:C.sage,background:"rgba(107,143,110,0.1)"}}>✓</div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -784,11 +871,17 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
       <Tip>Read left to right. 0 = open string. 2 = press 2nd fret. Numbers stacked vertically = chord.</Tip>
     </div>
   );
+  const [stringsComplete, setStringsComplete] = useState(false);
   if (id === 2) return (
     <div>
-      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:4}}>Start with open strings. Enable the mic and the app confirms each note as you pluck.</p>
-      <OpenStringPractice detected={detected} onTarget={onTarget}/>
-      <Tip>Press just behind the fret wire, not on top of it.</Tip>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:4}}>Pluck each open string one at a time. The app listens and lights it up green when it hears you - then tap Next to move on.</p>
+      <OpenStringPractice detected={detected} onTarget={onTarget} onComplete={()=>setStringsComplete(true)}/>
+      {!stringsComplete && <Tip>Open strings means no fingers on the frets - just pluck the string.</Tip>}
+      {stringsComplete && (
+        <div style={{display:"flex",gap:10,marginTop:16}}>
+          <Btn onClick={()=>setStringsComplete(false)} variant="secondary">Start over</Btn>
+        </div>
+      )}
     </div>
   );
   if (id === 3) return (
