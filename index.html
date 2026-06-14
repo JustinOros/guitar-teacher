@@ -907,65 +907,38 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
       <div style={{height:1,background:C.fret,margin:"20px 0"}}/>
       <p style={{fontWeight:600,color:C.text,marginBottom:8}}>Finger numbering</p>
       <p style={{marginBottom:12}}>Throughout this app, the gold circles on chord diagrams show you which finger to use. Here is how they are numbered:</p>
-      <div style={{background:"#0A0A0E",borderRadius:12,border:"1px solid "+C.fret,padding:"16px 8px",marginBottom:16}}>
-        <svg viewBox="0 0 320 220" width="100%" style={{display:"block",maxWidth:320,margin:"0 auto"}}>
-          {/* Palm base */}
-          <ellipse cx={160} cy={188} rx={72} ry={30} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
-
-          {/* Thumb - angled left */}
-          <ellipse cx={76} cy={155} rx={16} ry={32} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}
-            transform="rotate(-35 76 155)"/>
-
-          {/* Index finger */}
-          <rect x={91} y={68} width={30} height={88} rx={15} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
-          {/* Middle finger - tallest */}
-          <rect x={129} y={48} width={30} height={105} rx={15} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
-          {/* Ring finger */}
-          <rect x={167} y={60} width={30} height={95} rx={15} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
-          {/* Pinky */}
-          <rect x={205} y={82} width={26} height={73} rx={13} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
-
-          {/* Knuckle lines */}
-          <line x1={94} y1={120} x2={118} y2={120} stroke="#4A3828" strokeWidth={1}/>
-          <line x1={94} y1={140} x2={118} y2={140} stroke="#4A3828" strokeWidth={1}/>
-          <line x1={132} y1={118} x2={156} y2={118} stroke="#4A3828" strokeWidth={1}/>
-          <line x1={132} y1={138} x2={156} y2={138} stroke="#4A3828" strokeWidth={1}/>
-          <line x1={170} y1={120} x2={194} y2={120} stroke="#4A3828" strokeWidth={1}/>
-          <line x1={170} y1={140} x2={194} y2={140} stroke="#4A3828" strokeWidth={1}/>
-          <line x1={208} y1={126} x2={228} y2={126} stroke="#4A3828" strokeWidth={1}/>
-          <line x1={208} y1={144} x2={228} y2={144} stroke="#4A3828" strokeWidth={1}/>
-
-          {/* Gold circles on fingertips with numbers */}
-          {/* Index = 1 */}
-          <circle cx={106} cy={80} r={16} fill="rgba(212,168,71,0.15)"/>
-          <circle cx={106} cy={80} r={13} fill={C.amber}/>
-          <text x={106} y={85} textAnchor="middle" fontSize={14} fill="#1A1A1F" fontWeight="900" fontFamily="sans-serif">1</text>
-
-          {/* Middle = 2 */}
-          <circle cx={144} cy={60} r={16} fill="rgba(212,168,71,0.15)"/>
-          <circle cx={144} cy={60} r={13} fill={C.amber}/>
-          <text x={144} y={65} textAnchor="middle" fontSize={14} fill="#1A1A1F" fontWeight="900" fontFamily="sans-serif">2</text>
-
-          {/* Ring = 3 */}
-          <circle cx={182} cy={72} r={16} fill="rgba(212,168,71,0.15)"/>
-          <circle cx={182} cy={72} r={13} fill={C.amber}/>
-          <text x={182} y={77} textAnchor="middle" fontSize={14} fill="#1A1A1F" fontWeight="900" fontFamily="sans-serif">3</text>
-
-          {/* Pinky = 4 */}
-          <circle cx={218} cy={94} r={16} fill="rgba(212,168,71,0.15)"/>
-          <circle cx={218} cy={94} r={13} fill={C.amber}/>
-          <text x={218} y={99} textAnchor="middle" fontSize={14} fill="#1A1A1F" fontWeight="900" fontFamily="sans-serif">4</text>
-
-          {/* Labels below fingers */}
-          <text x={106} y={172} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Index</text>
-          <text x={144} y={172} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Middle</text>
-          <text x={182} y={172} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Ring</text>
-          <text x={218} y={172} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Pinky</text>
-
-          {/* Thumb label */}
-          <text x={58} y={175} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Thumb</text>
-          <text x={58} y={187} textAnchor="middle" fontSize={10} fill={C.muted} fontFamily="sans-serif">(not numbered)</text>
-        </svg>
+      <div style={{background:"#0A0A0E",borderRadius:12,border:"1px solid "+C.fret,padding:"24px 16px 16px",marginBottom:16,textAlign:"center"}}>
+        <div style={{position:"relative",display:"inline-block"}}>
+          {/* Gold numbers above fingers - positioned to align with emoji fingertips */}
+          <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",
+            gap:0,marginBottom:4,paddingLeft:18}}>
+            {[
+              {num:"1", ml:0},
+              {num:"2", ml:8},
+              {num:"3", ml:6},
+              {num:"4", ml:4},
+            ].map(({num,ml})=>(
+              <div key={num} style={{marginLeft:ml,display:"flex",flexDirection:"column",alignItems:"center"}}>
+                <div style={{width:36,height:36,borderRadius:"50%",
+                  background:C.amber,display:"flex",alignItems:"center",
+                  justifyContent:"center",fontSize:18,fontWeight:900,
+                  color:"#1A1A1F",fontFamily:"sans-serif",
+                  boxShadow:"0 0 10px rgba(212,168,71,0.4)"}}>
+                  {num}
+                </div>
+                <div style={{width:2,height:8,background:"rgba(212,168,71,0.4)",margin:"2px auto 0"}}/>
+              </div>
+            ))}
+          </div>
+          <div style={{fontSize:140,lineHeight:1}}>🤚</div>
+        </div>
+        <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:12,flexWrap:"wrap",paddingLeft:18}}>
+          {[["1","Index"],["2","Middle"],["3","Ring"],["4","Pinky"]].map(([num,name])=>(
+            <div key={num} style={{textAlign:"center",minWidth:48}}>
+              <div style={{fontSize:11,color:C.muted,fontFamily:"sans-serif"}}>{name}</div>
+            </div>
+          ))}
+        </div>
       </div>
       <Tip>When a chord diagram shows a <strong style={{color:C.amber}}>1</strong> on a string, press that string with your index finger. <strong style={{color:C.amber}}>2</strong> = middle, <strong style={{color:C.amber}}>3</strong> = ring, <strong style={{color:C.amber}}>4</strong> = pinky.</Tip>
       <div style={{height:1,background:C.fret,margin:"20px 0"}}/>

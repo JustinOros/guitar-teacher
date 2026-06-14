@@ -35,9 +35,9 @@ function autoCorrelate(buf, sr) {
 }
 
 const CHORDS = {
-  Em:{ dots:[{s:1,f:2,n:"2"},{s:2,f:2,n:"3"}], open:[3,4,5], muted:[], label:"x x 0 2 2 0" },
-  Am:{ dots:[{s:4,f:2,n:"1"},{s:3,f:2,n:"2"},{s:2,f:2,n:"3"}], open:[4,5], muted:[0], label:"x 0 2 2 1 0" },
-  G: { dots:[{s:0,f:3,n:"2"},{s:5,f:3,n:"4"},{s:1,f:2,n:"1"},{s:4,f:2,n:"3"}], open:[2,3], muted:[], label:"3 2 0 0 3 3" },
+  Em:{ dots:[{s:2,f:2,n:"2"},{s:3,f:2,n:"3"}], open:[0,1,4,5], muted:[], label:"0 0 2 2 0 0" },
+  Am:{ dots:[{s:2,f:2,n:"2"},{s:3,f:2,n:"3"},{s:4,f:2,n:"1"}], open:[1,5], muted:[0], label:"x 0 2 2 1 0" },
+  G: { dots:[{s:0,f:3,n:"2"},{s:1,f:2,n:"1"},{s:4,f:3,n:"3"},{s:5,f:3,n:"4"}], open:[2,3], muted:[], label:"3 2 0 0 3 3" },
   C: { dots:[{s:1,f:3,n:"3"},{s:2,f:2,n:"2"},{s:4,f:1,n:"1"}], open:[3,5], muted:[0], label:"x 3 2 0 1 0" },
   D: { dots:[{s:3,f:2,n:"1"},{s:4,f:3,n:"3"},{s:5,f:2,n:"2"}], open:[2], muted:[0,1], label:"x x 0 2 3 2" },
 };
@@ -130,52 +130,60 @@ function ChordDiagram({ name }) {
   const sh = CHORDS[name];
   if (!sh) return null;
 
-  const NUM_FRETS=5, NS=6, W=320, H=200;
-  const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
+  // Three columns left of nut:
+  // col1=12 (string letter), col2=34 (open/muted symbol), nut at LEFT=60
+  const NUM_FRETS=5, NS=6, W=320, H=210;
+  const TOP=44, BOT=H-22, LEFT=60, RIGHT=W-10;
   const strGap=(BOT-TOP)/(NS-1);
   const fretGap=(RIGHT-LEFT)/NUM_FRETS;
   const STRING_LABELS=["E","A","D","G","B","e"];
-
-  // Build note list from chord shape: open strings + fretted dots
-  const notes = [];
-  sh.open.forEach(s=>{ notes.push({str:s, fret:0, label:"o", muted:false}); });
-  sh.muted.forEach(s=>{ notes.push({str:s, fret:-1, label:"x", muted:true}); });
-  sh.dots.forEach(({s,f,n})=>{ notes.push({str:s, fret:f, label:n, muted:false, finger:true}); });
+  const COL_LABEL=12, COL_MARKER=36;
 
   return (
     <div style={{background:"#0A0A0E",borderRadius:10,padding:"10px 6px",
       border:"1px solid "+C.fret,marginBottom:8}}>
       <div style={{textAlign:"center",marginBottom:6,fontWeight:700,fontSize:15,color:C.amber}}>{name}</div>
       <svg width={W} height={H} style={{display:"block",margin:"0 auto"}}>
+        {/* Nut */}
         <line x1={LEFT} y1={TOP-2} x2={LEFT} y2={BOT+2} stroke={C.text} strokeWidth={3}/>
+        {/* Frets */}
         {Array.from({length:NUM_FRETS+1},(_,f)=>(
           <line key={f} x1={LEFT+f*fretGap} y1={TOP} x2={LEFT+f*fretGap} y2={BOT} stroke={C.fret} strokeWidth={1}/>
         ))}
+        {/* Strings */}
         {Array.from({length:NS},(_,s)=>(
           <line key={s} x1={LEFT} y1={TOP+s*strGap} x2={RIGHT} y2={TOP+s*strGap}
-            stroke={C.string} strokeWidth={s===0?0.8:s===5?2:1.2}/>
+            stroke={C.string} strokeWidth={s===0?2:s===5?0.8:1.2}/>
         ))}
+        {/* Col 1: string name labels */}
         {STRING_LABELS.map((n,s)=>(
-          <text key={s} x={LEFT-10} y={TOP+s*strGap+4} textAnchor="middle"
-            fontSize={10} fill={C.amber} fontFamily="monospace" fontWeight="600">{n}</text>
+          <text key={s} x={COL_LABEL} y={TOP+s*strGap+4} textAnchor="middle"
+            fontSize={11} fill={C.amber} fontFamily="monospace" fontWeight="700">{n}</text>
         ))}
+        {/* Col 2: open or muted markers */}
+        {Array.from({length:NS},(_,s)=>{
+          const cy=TOP+s*strGap;
+          const isOpen = sh.open.includes(s);
+          const isMuted = sh.muted.includes(s);
+          if(isOpen) return (
+            <g key={s}>
+              <circle cx={COL_MARKER} cy={cy} r={7} fill="none" stroke={C.sage} strokeWidth={2}/>
+            </g>
+          );
+          if(isMuted) return (
+            <g key={s}>
+              <line x1={COL_MARKER-6} y1={cy-6} x2={COL_MARKER+6} y2={cy+6} stroke={C.coral} strokeWidth={2.5}/>
+              <line x1={COL_MARKER+6} y1={cy-6} x2={COL_MARKER-6} y2={cy+6} stroke={C.coral} strokeWidth={2.5}/>
+            </g>
+          );
+          return null;
+        })}
+        {/* Fret numbers */}
         {Array.from({length:NUM_FRETS},(_,f)=>(
           <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
             fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
         ))}
-        {sh.muted.map(s=>{
-          const cy=TOP+s*strGap;
-          return (
-            <g key={"m"+s}>
-              <line x1={LEFT-18} y1={cy-6} x2={LEFT-8} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
-              <line x1={LEFT-8}  y1={cy-6} x2={LEFT-18} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
-            </g>
-          );
-        })}
-        {sh.open.map(s=>(
-          <circle key={"o"+s} cx={LEFT-13} cy={TOP+s*strGap} r={5}
-            fill="none" stroke={C.sage} strokeWidth={2}/>
-        ))}
+        {/* Fretted finger dots */}
         {sh.dots.map(({s,f,n},i)=>{
           const cx = LEFT+(f-0.5)*fretGap;
           const cy = TOP+s*strGap;
@@ -802,6 +810,62 @@ function SongSearch({ detected, listening, onStartMic }) {
   );
 }
 
+function ChordPractice({ chords, detected, onTarget }) {
+  const CHORD_ROOTS = {Em:"E2", Am:"A2", G:"G2", C:"C3", D:"D3"};
+  const KUDOS = ["Sounds good!","Nice strum!","That sounds right!","Great job!","Keep it up!","Well done!"];
+  const [activeChord, setActiveChord] = useState(null);
+  const [heard, setHeard] = useState({});
+  const [kudos, setKudos] = useState({});
+
+  useEffect(()=>{
+    if (activeChord) onTarget(CHORD_ROOTS[activeChord]);
+    else onTarget(null);
+  },[activeChord]);
+
+  useEffect(()=>{
+    if (!detected || !activeChord || heard[activeChord]) return;
+    const root = CHORD_ROOTS[activeChord];
+    if (detected === root) {
+      setHeard(h=>({...h,[activeChord]:true}));
+      setKudos(k=>({...k,[activeChord]:KUDOS[Math.floor(Math.random()*KUDOS.length)]}));
+    }
+  },[detected, activeChord, heard]);
+
+  return (
+    <div>
+      <div style={{fontSize:12,color:C.muted,marginBottom:10}}>
+        Tap a chord to practice it, then strum on your guitar:
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+        {chords.map(name=>(
+          <button key={name} onClick={()=>setActiveChord(activeChord===name?null:name)}
+            style={{padding:"6px 16px",borderRadius:20,fontFamily:"sans-serif",fontSize:13,
+              fontWeight:600,cursor:"pointer",
+              border:"1px solid "+(heard[name]?C.sage:activeChord===name?C.amber:C.fret),
+              background:heard[name]?"rgba(107,143,110,0.15)":activeChord===name?"rgba(212,168,71,0.1)":"transparent",
+              color:heard[name]?C.sage:activeChord===name?C.amber:C.muted}}>
+            {heard[name]?"✓ ":""}{name}
+          </button>
+        ))}
+      </div>
+      {activeChord && (
+        <div style={{marginBottom:12}}>
+          <ChordDiagram name={activeChord}/>
+          <div style={{marginTop:10,padding:"10px 14px",borderRadius:8,
+            background:heard[activeChord]?"rgba(107,143,110,0.12)":"rgba(212,168,71,0.06)",
+            border:"1px solid "+(heard[activeChord]?C.sage:"rgba(212,168,71,0.2)"),
+            fontSize:13,color:heard[activeChord]?C.sage:C.muted,textAlign:"center"}}>
+            {heard[activeChord]
+              ? <span style={{fontWeight:700,fontSize:15}}>🎸 {kudos[activeChord]}</span>
+              : <span>Strum the {activeChord} chord - listening for the root note ({CHORD_ROOTS[activeChord]})</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 const LESSONS = [
   {title:"How to Hold a Guitar",  eyebrow:"Lesson 1 - Getting Started",    next:"Next: Reading Tab"},
   {title:"Reading Guitar Tab",    eyebrow:"Lesson 2 - Tab Basics",         next:"Next: Your First Notes"},
@@ -820,36 +884,151 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
       <Tip>Sit with the guitar waist on your right leg. Back straight, neck angled slightly up. Thumb behind the neck, fingers curling over the fretboard.</Tip>
       <p>Your strumming hand hovers over the soundhole. For now use your thumb, sweeping downward across the strings.</p>
       <div style={{height:1,background:C.fret,margin:"20px 0"}}/>
+      <p style={{fontWeight:600,color:C.text,marginBottom:8}}>Finger numbering</p>
+      <p style={{marginBottom:12}}>Throughout this app, the gold circles on chord diagrams show you which finger to use. Here is how they are numbered:</p>
+      <div style={{background:"#0A0A0E",borderRadius:12,border:"1px solid "+C.fret,padding:"16px 8px",marginBottom:16}}>
+        <svg viewBox="0 0 320 220" width="100%" style={{display:"block",maxWidth:320,margin:"0 auto"}}>
+          {/* Palm base */}
+          <ellipse cx={160} cy={188} rx={72} ry={30} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
+
+          {/* Thumb - angled left */}
+          <ellipse cx={76} cy={155} rx={16} ry={32} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}
+            transform="rotate(-35 76 155)"/>
+
+          {/* Index finger */}
+          <rect x={91} y={68} width={30} height={88} rx={15} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
+          {/* Middle finger - tallest */}
+          <rect x={129} y={48} width={30} height={105} rx={15} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
+          {/* Ring finger */}
+          <rect x={167} y={60} width={30} height={95} rx={15} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
+          {/* Pinky */}
+          <rect x={205} y={82} width={26} height={73} rx={13} fill="#2A2018" stroke="#4A3828" strokeWidth={1.5}/>
+
+          {/* Knuckle lines */}
+          <line x1={94} y1={120} x2={118} y2={120} stroke="#4A3828" strokeWidth={1}/>
+          <line x1={94} y1={140} x2={118} y2={140} stroke="#4A3828" strokeWidth={1}/>
+          <line x1={132} y1={118} x2={156} y2={118} stroke="#4A3828" strokeWidth={1}/>
+          <line x1={132} y1={138} x2={156} y2={138} stroke="#4A3828" strokeWidth={1}/>
+          <line x1={170} y1={120} x2={194} y2={120} stroke="#4A3828" strokeWidth={1}/>
+          <line x1={170} y1={140} x2={194} y2={140} stroke="#4A3828" strokeWidth={1}/>
+          <line x1={208} y1={126} x2={228} y2={126} stroke="#4A3828" strokeWidth={1}/>
+          <line x1={208} y1={144} x2={228} y2={144} stroke="#4A3828" strokeWidth={1}/>
+
+          {/* Gold circles on fingertips with numbers */}
+          {/* Index = 1 */}
+          <circle cx={106} cy={80} r={16} fill="rgba(212,168,71,0.15)"/>
+          <circle cx={106} cy={80} r={13} fill={C.amber}/>
+          <text x={106} y={85} textAnchor="middle" fontSize={14} fill="#1A1A1F" fontWeight="900" fontFamily="sans-serif">1</text>
+
+          {/* Middle = 2 */}
+          <circle cx={144} cy={60} r={16} fill="rgba(212,168,71,0.15)"/>
+          <circle cx={144} cy={60} r={13} fill={C.amber}/>
+          <text x={144} y={65} textAnchor="middle" fontSize={14} fill="#1A1A1F" fontWeight="900" fontFamily="sans-serif">2</text>
+
+          {/* Ring = 3 */}
+          <circle cx={182} cy={72} r={16} fill="rgba(212,168,71,0.15)"/>
+          <circle cx={182} cy={72} r={13} fill={C.amber}/>
+          <text x={182} y={77} textAnchor="middle" fontSize={14} fill="#1A1A1F" fontWeight="900" fontFamily="sans-serif">3</text>
+
+          {/* Pinky = 4 */}
+          <circle cx={218} cy={94} r={16} fill="rgba(212,168,71,0.15)"/>
+          <circle cx={218} cy={94} r={13} fill={C.amber}/>
+          <text x={218} y={99} textAnchor="middle" fontSize={14} fill="#1A1A1F" fontWeight="900" fontFamily="sans-serif">4</text>
+
+          {/* Labels below fingers */}
+          <text x={106} y={172} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Index</text>
+          <text x={144} y={172} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Middle</text>
+          <text x={182} y={172} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Ring</text>
+          <text x={218} y={172} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Pinky</text>
+
+          {/* Thumb label */}
+          <text x={58} y={175} textAnchor="middle" fontSize={11} fill={C.muted} fontFamily="sans-serif">Thumb</text>
+          <text x={58} y={187} textAnchor="middle" fontSize={10} fill={C.muted} fontFamily="sans-serif">(not numbered)</text>
+        </svg>
+      </div>
+      <Tip>When a chord diagram shows a <strong style={{color:C.amber}}>1</strong> on a string, press that string with your index finger. <strong style={{color:C.amber}}>2</strong> = middle, <strong style={{color:C.amber}}>3</strong> = ring, <strong style={{color:C.amber}}>4</strong> = pinky.</Tip>
+      <div style={{height:1,background:C.fret,margin:"20px 0"}}/>
       <p style={{fontSize:14,color:C.muted}}>Strings thick to thin: <strong style={{color:C.text}}>E A D G B e</strong> - remember with "Elephants And Donkeys Grow Big Ears."</p>
     </div>
   );
-  if (id === 1) return (
-    <div>
-      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>Tab shows you exactly where to put your fingers. No music theory needed. Each line is a string, numbers are frets.</p>
-      <div style={{background:"#111115",borderRadius:10,padding:"18px 22px",border:"1px solid "+C.fret,overflowX:"auto"}}>
-        {[
-          {s:"e",v:["--","0","--","--","--","3","--"]},
-          {s:"B",v:["--","--","0","--","--","3","--"]},
-          {s:"G",v:["--","--","--","0","--","0","--"]},
-          {s:"D",v:["--","--","--","--","--","0","--"]},
-          {s:"A",v:["--","--","--","--","--","2","--"]},
-          {s:"E",v:["0","--","--","--","--","3","--"]},
-        ].map(({s,v})=>(
-          <div key={s} style={{display:"flex",alignItems:"center",height:26}}>
-            <span style={{fontFamily:"monospace",fontSize:13,fontWeight:600,color:C.amber,width:22}}>{s}</span>
-            <span style={{fontFamily:"monospace",fontSize:13,color:C.string,marginRight:4}}>|</span>
-            {v.map((val,i)=>(
-              <span key={i} style={{fontFamily:"monospace",fontSize:14,width:22,textAlign:"center",
-                color:val==="--"?C.string:i>=5?C.amber:C.text,fontWeight:val!=="--"?600:400}}>
-                {val}
-              </span>
+  if (id === 1) {
+    // Wider left margin: label col at 14, marker col at 34, nut at 64
+    const NUM_FRETS=5, NS=6, W=340, H=210;
+    const TOP=44, BOT=H-24, LEFT=64, RIGHT=W-10;
+    const strGap=(BOT-TOP)/(NS-1);
+    const fretGap=(RIGHT-LEFT)/NUM_FRETS;
+    const LABELS=["E","A","D","G","B","e"];
+    const markers=[
+      {s:0,type:"open"},{s:1,type:"muted"},{s:2,type:"muted"},
+      {s:3,type:"muted"},{s:4,type:"open"},{s:5,type:"open"}
+    ];
+    return (
+      <div>
+        <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>
+          Each line is a string on your guitar. Numbers tell you which fret to press. 0 means open - no fingers needed.
+        </p>
+        <div style={{background:"#0A0A0E",borderRadius:10,padding:"10px 6px",border:"1px solid "+C.fret,marginBottom:16,overflowX:"auto"}}>
+          <div style={{textAlign:"center",fontSize:12,color:C.muted,marginBottom:8}}>Example - a G chord</div>
+          <svg width={W} height={H} style={{display:"block",margin:"0 auto"}}>
+            {/* Nut */}
+            <line x1={LEFT} y1={TOP-2} x2={LEFT} y2={BOT+2} stroke={C.text} strokeWidth={3}/>
+            {/* Fret lines */}
+            {Array.from({length:NUM_FRETS+1},(_,f)=>(
+              <line key={f} x1={LEFT+f*fretGap} y1={TOP} x2={LEFT+f*fretGap} y2={BOT} stroke={C.fret} strokeWidth={1}/>
             ))}
-          </div>
-        ))}
+            {/* Strings */}
+            {Array.from({length:NS},(_,s)=>(
+              <line key={s} x1={LEFT} y1={TOP+s*strGap} x2={RIGHT} y2={TOP+s*strGap}
+                stroke={C.string} strokeWidth={s===0?2:s===5?0.8:1.2}/>
+            ))}
+            {/* String name labels - col 1 */}
+            {LABELS.map((n,s)=>(
+              <text key={s} x={14} y={TOP+s*strGap+4} textAnchor="middle"
+                fontSize={11} fill={C.amber} fontFamily="monospace" fontWeight="700">{n}</text>
+            ))}
+            {/* Open/muted markers - col 2 */}
+            {markers.map(({s,type})=>{
+              const cy=TOP+s*strGap, cx=38;
+              if(type==="open") return (
+                <g key={s}>
+                  <circle cx={cx} cy={cy} r={8} fill="none" stroke={C.sage} strokeWidth={2}/>
+                  <text x={cx} y={cy+4} textAnchor="middle" fontSize={9}
+                    fill={C.sage} fontFamily="monospace" fontWeight="700">0</text>
+                </g>
+              );
+              return (
+                <g key={s}>
+                  <line x1={cx-6} y1={cy-6} x2={cx+6} y2={cy+6} stroke={C.coral} strokeWidth={2.5}/>
+                  <line x1={cx+6} y1={cy-6} x2={cx-6} y2={cy+6} stroke={C.coral} strokeWidth={2.5}/>
+                </g>
+              );
+            })}
+            {/* Fret numbers */}
+            {Array.from({length:NUM_FRETS},(_,f)=>(
+              <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
+                fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
+            ))}
+            {/* Fretted dots */}
+            {[{s:0,f:3,n:"3"},{s:1,f:2,n:"2"},{s:4,f:2,n:"1"},{s:5,f:3,n:"4"}].map(({s,f,n},i)=>{
+              const cx=LEFT+(f-0.5)*fretGap, cy=TOP+s*strGap;
+              return (
+                <g key={i}>
+                  <circle cx={cx} cy={cy} r={14} fill="rgba(212,168,71,0.12)"/>
+                  <circle cx={cx} cy={cy} r={11} fill={C.amber}/>
+                  <text x={cx} y={cy+5} textAnchor="middle" fontSize={13}
+                    fill="#1A1A1F" fontWeight="900" fontFamily="monospace">{n}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <Tip>0 = open string (no fingers). A number = press that fret. X = don't play that string.</Tip>
+        <p style={{color:"#C8C5BE",fontSize:14,lineHeight:1.7,marginTop:12}}>
+          The top string (E) is the thickest - closest to you when holding the guitar. The bottom (e) is the thinnest.
+        </p>
       </div>
-      <Tip>Read left to right. 0 = open string. 2 = press 2nd fret. Numbers stacked vertically = chord.</Tip>
-    </div>
-  );
+    );
+  }
   const [stringsComplete, setStringsComplete] = useState(false);
   if (id === 2) return (
     <div>
@@ -865,19 +1044,15 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
   );
   if (id === 3) return (
     <div>
-      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>Em is the easiest chord on guitar. Only 2 fingers. Am uses 3 fingers in a similar shape.</p>
-      <div style={{display:"flex",gap:20,flexWrap:"wrap",margin:"16px 0"}}>
-        <ChordDiagram name="Em"/><ChordDiagram name="Am"/>
-      </div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>Em is the easiest chord on guitar. Only 2 fingers. Am uses 3 fingers in a similar shape. Tap one to see the fingering, then strum it - the mic will confirm!</p>
+      <ChordPractice chords={["Em","Am"]} detected={detected} onTarget={onTarget}/>
       <Tip>Em: middle finger 2nd fret A string, ring finger 2nd fret D string. Strum all 6 strings.</Tip>
     </div>
   );
   if (id === 4) return (
     <div>
-      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>G, C, and D unlock hundreds of songs. Together with Em and Am you have most of what you need.</p>
-      <div style={{display:"flex",gap:20,flexWrap:"wrap",margin:"16px 0"}}>
-        <ChordDiagram name="G"/><ChordDiagram name="C"/><ChordDiagram name="D"/>
-      </div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>G, C, and D unlock hundreds of songs. Tap each chord to see the fingering and strum it - the mic will confirm when it hears you!</p>
+      <ChordPractice chords={["G","C","D"]} detected={detected} onTarget={onTarget}/>
       <Tip>Classic progression: G - D - Em - C. Drill the transitions slowly, accuracy before speed.</Tip>
     </div>
   );
