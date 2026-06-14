@@ -947,8 +947,8 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
     const fretGap=(RIGHT-LEFT)/NUM_FRETS;
     const LABELS=["E","A","D","G","B","e"];
     const markers=[
-      {s:0,type:"open"},{s:1,type:"muted"},{s:2,type:"muted"},
-      {s:3,type:"muted"},{s:4,type:"open"},{s:5,type:"open"}
+      {s:0,type:"fretted"},{s:1,type:"fretted"},{s:2,type:"open"},
+      {s:3,type:"open"},{s:4,type:"fretted"},{s:5,type:"fretted"}
     ];
     return (
       <div>
