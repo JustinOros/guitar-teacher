@@ -350,8 +350,8 @@ function SongPlayer({ parts, detected, listening, onStartMic }) {
 
   useEffect(()=>()=>{ if(timerRef.current) clearTimeout(timerRef.current); },[]);
 
-  const NUM_FRETS=6, NS=6, W=320, H=240;
-  const TOP=24, BOT=H-24, LEFT=44, RIGHT=W-12;
+  const NUM_FRETS=6, NS=6, W=320, H=260;
+  const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
   const strGap=(BOT-TOP)/(NS-1);
   const fretGap=(RIGHT-LEFT)/NUM_FRETS;
 
