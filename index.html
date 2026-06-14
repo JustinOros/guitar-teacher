@@ -984,12 +984,13 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
                     fill={C.sage} fontFamily="monospace" fontWeight="700">0</text>
                 </g>
               );
-              return (
+              if(type==="muted") return (
                 <g key={s}>
                   <line x1={cx-6} y1={cy-6} x2={cx+6} y2={cy+6} stroke={C.coral} strokeWidth={2.5}/>
                   <line x1={cx+6} y1={cy-6} x2={cx-6} y2={cy+6} stroke={C.coral} strokeWidth={2.5}/>
                 </g>
               );
+              return null;
             })}
             {/* Fret numbers */}
             {Array.from({length:NUM_FRETS},(_,f)=>(
