@@ -823,6 +823,62 @@ function SongSearch({ detected, listening, onStartMic }) {
   );
 }
 
+function ChordPractice({ chords, detected, onTarget }) {
+  const CHORD_ROOTS = {Em:"E2", Am:"A2", G:"G2", C:"C3", D:"D3"};
+  const KUDOS = ["Sounds good!","Nice strum!","That sounds right!","Great job!","Keep it up!","Well done!"];
+  const [activeChord, setActiveChord] = useState(null);
+  const [heard, setHeard] = useState({});
+  const [kudos, setKudos] = useState({});
+
+  useEffect(()=>{
+    if (activeChord) onTarget(CHORD_ROOTS[activeChord]);
+    else onTarget(null);
+  },[activeChord]);
+
+  useEffect(()=>{
+    if (!detected || !activeChord || heard[activeChord]) return;
+    const root = CHORD_ROOTS[activeChord];
+    if (detected === root) {
+      setHeard(h=>({...h,[activeChord]:true}));
+      setKudos(k=>({...k,[activeChord]:KUDOS[Math.floor(Math.random()*KUDOS.length)]}));
+    }
+  },[detected, activeChord, heard]);
+
+  return (
+    <div>
+      <div style={{fontSize:12,color:C.muted,marginBottom:10}}>
+        Tap a chord to practice it, then strum on your guitar:
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+        {chords.map(name=>(
+          <button key={name} onClick={()=>setActiveChord(activeChord===name?null:name)}
+            style={{padding:"6px 16px",borderRadius:20,fontFamily:"sans-serif",fontSize:13,
+              fontWeight:600,cursor:"pointer",
+              border:"1px solid "+(heard[name]?C.sage:activeChord===name?C.amber:C.fret),
+              background:heard[name]?"rgba(107,143,110,0.15)":activeChord===name?"rgba(212,168,71,0.1)":"transparent",
+              color:heard[name]?C.sage:activeChord===name?C.amber:C.muted}}>
+            {heard[name]?"✓ ":""}{name}
+          </button>
+        ))}
+      </div>
+      {activeChord && (
+        <div style={{marginBottom:12}}>
+          <ChordDiagram name={activeChord}/>
+          <div style={{marginTop:10,padding:"10px 14px",borderRadius:8,
+            background:heard[activeChord]?"rgba(107,143,110,0.12)":"rgba(212,168,71,0.06)",
+            border:"1px solid "+(heard[activeChord]?C.sage:"rgba(212,168,71,0.2)"),
+            fontSize:13,color:heard[activeChord]?C.sage:C.muted,textAlign:"center"}}>
+            {heard[activeChord]
+              ? <span style={{fontWeight:700,fontSize:15}}>🎸 {kudos[activeChord]}</span>
+              : <span>Strum the {activeChord} chord - listening for the root note ({CHORD_ROOTS[activeChord]})</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 const LESSONS = [
   {title:"How to Hold a Guitar",  eyebrow:"Lesson 1 - Getting Started",    next:"Next: Reading Tab"},
   {title:"Reading Guitar Tab",    eyebrow:"Lesson 2 - Tab Basics",         next:"Next: Your First Notes"},
@@ -944,19 +1000,15 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
   );
   if (id === 3) return (
     <div>
-      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>Em is the easiest chord on guitar. Only 2 fingers. Am uses 3 fingers in a similar shape.</p>
-      <div style={{display:"flex",gap:20,flexWrap:"wrap",margin:"16px 0"}}>
-        <ChordDiagram name="Em"/><ChordDiagram name="Am"/>
-      </div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>Em is the easiest chord on guitar. Only 2 fingers. Am uses 3 fingers in a similar shape. Tap one to see the fingering, then strum it - the mic will confirm!</p>
+      <ChordPractice chords={["Em","Am"]} detected={detected} onTarget={onTarget}/>
       <Tip>Em: middle finger 2nd fret A string, ring finger 2nd fret D string. Strum all 6 strings.</Tip>
     </div>
   );
   if (id === 4) return (
     <div>
-      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>G, C, and D unlock hundreds of songs. Together with Em and Am you have most of what you need.</p>
-      <div style={{display:"flex",gap:20,flexWrap:"wrap",margin:"16px 0"}}>
-        <ChordDiagram name="G"/><ChordDiagram name="C"/><ChordDiagram name="D"/>
-      </div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>G, C, and D unlock hundreds of songs. Tap each chord to see the fingering and strum it - the mic will confirm when it hears you!</p>
+      <ChordPractice chords={["G","C","D"]} detected={detected} onTarget={onTarget}/>
       <Tip>Classic progression: G - D - Em - C. Drill the transitions slowly, accuracy before speed.</Tip>
     </div>
   );
