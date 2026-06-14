@@ -56,11 +56,11 @@ function autoCorrelate(buf, sr) {
 }
 
 const CHORDS = {
-  Em:{ dots:[{s:4,f:2,n:"2"},{s:3,f:2,n:"3"}], open:[0,1,2,5], muted:[], label:"x x 0 2 2 0" },
-  Am:{ dots:[{s:1,f:2,n:"1"},{s:2,f:2,n:"2"},{s:3,f:2,n:"3"}], open:[0,1], muted:[5], label:"x 0 2 2 1 0" },
-  G: { dots:[{s:5,f:3,n:"2"},{s:0,f:3,n:"4"},{s:4,f:2,n:"1"},{s:1,f:2,n:"3"}], open:[2,3], muted:[], label:"3 2 0 0 3 3" },
-  C: { dots:[{s:4,f:3,n:"3"},{s:3,f:2,n:"2"},{s:1,f:1,n:"1"}], open:[0,2], muted:[5], label:"x 3 2 0 1 0" },
-  D: { dots:[{s:2,f:2,n:"1"},{s:1,f:3,n:"3"},{s:0,f:2,n:"2"}], open:[3], muted:[4,5], label:"x x 0 2 3 2" },
+  Em:{ dots:[{s:1,f:2,n:"2"},{s:2,f:2,n:"3"}], open:[3,4,5], muted:[], label:"x x 0 2 2 0" },
+  Am:{ dots:[{s:4,f:2,n:"1"},{s:3,f:2,n:"2"},{s:2,f:2,n:"3"}], open:[4,5], muted:[0], label:"x 0 2 2 1 0" },
+  G: { dots:[{s:0,f:3,n:"2"},{s:5,f:3,n:"4"},{s:1,f:2,n:"1"},{s:4,f:2,n:"3"}], open:[2,3], muted:[], label:"3 2 0 0 3 3" },
+  C: { dots:[{s:1,f:3,n:"3"},{s:2,f:2,n:"2"},{s:4,f:1,n:"1"}], open:[3,5], muted:[0], label:"x 3 2 0 1 0" },
+  D: { dots:[{s:3,f:2,n:"1"},{s:4,f:3,n:"3"},{s:5,f:2,n:"2"}], open:[2], muted:[0,1], label:"x x 0 2 3 2" },
 };
 
 const SONG_LIBRARY = [
@@ -155,7 +155,7 @@ function ChordDiagram({ name }) {
   const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
   const strGap=(BOT-TOP)/(NS-1);
   const fretGap=(RIGHT-LEFT)/NUM_FRETS;
-  const STRING_LABELS=["e","B","G","D","A","E"];
+  const STRING_LABELS=["E","A","D","G","B","e"];
 
   // Build note list from chord shape: open strings + fretted dots
   const notes = [];
@@ -217,17 +217,17 @@ function ChordDiagram({ name }) {
 
 
 const NOTE_FRET_MAP = {
-  "E2":{str:5,fret:0},"F2":{str:5,fret:1},"F#2":{str:5,fret:2},"G2":{str:5,fret:3},
-  "G#2":{str:5,fret:4},"A2":{str:4,fret:0},"A#2":{str:4,fret:1},"Bb2":{str:4,fret:1},
-  "B2":{str:4,fret:2},"C3":{str:4,fret:3},"C#3":{str:4,fret:4},"D3":{str:3,fret:0},
-  "D#3":{str:3,fret:1},"E3":{str:3,fret:2},"F3":{str:3,fret:3},"F#3":{str:3,fret:4},
-  "G3":{str:2,fret:0},"G#3":{str:2,fret:1},"A3":{str:2,fret:2},"A#3":{str:2,fret:3},
-  "Bb3":{str:2,fret:3},"B3":{str:1,fret:0},"C4":{str:1,fret:1},"C#4":{str:1,fret:2},
-  "D4":{str:1,fret:3},"D#4":{str:1,fret:4},"E4":{str:0,fret:0},"F4":{str:0,fret:1},
-  "F#4":{str:0,fret:2},"G4":{str:0,fret:3},"G#4":{str:0,fret:4},"A4":{str:0,fret:5},
+  "E2":{str:0,fret:0},"F2":{str:0,fret:1},"F#2":{str:0,fret:2},"G2":{str:0,fret:3},
+  "G#2":{str:0,fret:4},"A2":{str:1,fret:0},"A#2":{str:1,fret:1},"Bb2":{str:1,fret:1},
+  "B2":{str:1,fret:2},"C3":{str:1,fret:3},"C#3":{str:1,fret:4},"D3":{str:2,fret:0},
+  "D#3":{str:2,fret:1},"E3":{str:2,fret:2},"F3":{str:2,fret:3},"F#3":{str:2,fret:4},
+  "G3":{str:3,fret:0},"G#3":{str:3,fret:1},"A3":{str:3,fret:2},"A#3":{str:3,fret:3},
+  "Bb3":{str:3,fret:3},"B3":{str:4,fret:0},"C4":{str:4,fret:1},"C#4":{str:4,fret:2},
+  "D4":{str:4,fret:3},"D#4":{str:4,fret:4},"E4":{str:5,fret:0},"F4":{str:5,fret:1},
+  "F#4":{str:5,fret:2},"G4":{str:5,fret:3},"G#4":{str:5,fret:4},"A4":{str:5,fret:5},
 };
 
-const STRING_NAMES = ["e","B","G","D","A","E"];
+const STRING_NAMES = ["E","A","D","G","B","e"];
 
 function Tip({ children }) {
   return (
@@ -547,7 +547,7 @@ function OpenStringPractice({ detected, onTarget, onComplete }) {
   const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
   const strGap=(BOT-TOP)/(NS-1);
   const fretGap=(RIGHT-LEFT)/NUM_FRETS;
-  const STRING_LABELS=["e","B","G","D","A","E"];
+  const STRING_LABELS=["E","A","D","G","B","e"];
 
   return (
     <div style={{margin:"20px 0"}}>
@@ -569,7 +569,7 @@ function OpenStringPractice({ detected, onTarget, onComplete }) {
                 const isTarget = s === current.note && false;
                 const strIdx = NS-1-s;
                 const targetStrIdx = OPEN_NOTES.indexOf(current);
-                const isHighlighted = (NS-1-s) === idx;
+                const isHighlighted = s === idx;
                 return (
                   <g key={s}>
                     {isHighlighted && (
@@ -585,7 +585,7 @@ function OpenStringPractice({ detected, onTarget, onComplete }) {
                       fontFamily="monospace" fontWeight={isHighlighted?"800":"400"}>
                       {STRING_LABELS[s]}
                     </text>
-                    {doneSet[NS-1-s] && (
+                    {doneSet[s] && (
                       <text x={RIGHT+10} y={TOP+s*strGap+4} textAnchor="middle"
                         fontSize={12} fill={C.sage}>✓</text>
                     )}
