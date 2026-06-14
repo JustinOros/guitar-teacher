@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GuitarTeacher</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1A1A1F; font-family: sans-serif; }
+    input::placeholder { color: #9A9490; }
+    textarea::placeholder { color: #9A9490; }
+    p + p { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+
+const C = {
+  bg:"#1A1A1F", bg2:"#22222A", bg3:"#2A2A35",
+  amber:"#D4A847", sage:"#6B8F6E", coral:"#E05C4B",
+  text:"#F0EDE6", muted:"#9A9490", string:"#8A8070", fret:"#3A3A48",
+};
+
+const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+function freqToNote(freq) {
+  if (freq < 60 || freq > 1200) return null;
+  const midi = Math.round(12 * Math.log2(freq / 440) + 69);
+  const name = NOTE_NAMES[midi % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  const hz = 440 * Math.pow(2, (midi - 69) / 12);
+  const cents = Math.round(1200 * Math.log2(freq / hz));
+  return { name: name + octave, cents };
+}
+
+function autoCorrelate(buf, sr) {
+  const N = buf.length, MAX = Math.floor(N / 2);
+  let rms = 0;
+  for (let i = 0; i < N; i++) rms += buf[i] * buf[i];
+  if (Math.sqrt(rms / N) < 0.01) return -1;
+  let best = -1, bestC = 0, lastC = 1;
+  for (let o = 0; o < MAX; o++) {
+    let c = 0;
+    for (let i = 0; i < MAX; i++) c += Math.abs(buf[i] - buf[i + o]);
+    c = 1 - c / MAX;
+    if (c > 0.9 && c > lastC && c > bestC) { bestC = c; best = o; }
+    lastC = c;
+  }
+  return best > 0 && bestC > 0.01 ? sr / best : -1;
+}
+
+const CHORDS = {
+  Em:{ dots:[{s:4,f:2,n:"2"},{s:3,f:2,n:"3"}], open:[0,1,2,5], muted:[], label:"x x 0 2 2 0" },
+  Am:{ dots:[{s:1,f:2,n:"1"},{s:2,f:2,n:"2"},{s:3,f:2,n:"3"}], open:[0,1], muted:[5], label:"x 0 2 2 1 0" },
+  G: { dots:[{s:5,f:3,n:"2"},{s:0,f:3,n:"4"},{s:4,f:2,n:"1"},{s:1,f:2,n:"3"}], open:[2,3], muted:[], label:"3 2 0 0 3 3" },
+  C: { dots:[{s:4,f:3,n:"3"},{s:3,f:2,n:"2"},{s:1,f:1,n:"1"}], open:[0,2], muted:[5], label:"x 3 2 0 1 0" },
+  D: { dots:[{s:2,f:2,n:"1"},{s:1,f:3,n:"3"},{s:0,f:2,n:"2"}], open:[3], muted:[4,5], label:"x x 0 2 3 2" },
+};
+
+const SONG_LIBRARY = [
+  {"title":"Knockin on Heavens Door","artist":"Bob Dylan","genre":"Classic Rock","diff":"Beginner","chords":["G","D","Am"],"parts":[{"name":"Verse","tab":{"e":"--3---2---0---","B":"--3---3---1---","G":"--0---2---2---","D":"--0---0---2---","A":"--2-------0---","E":"3---2---------"},"notes":["G4","D3","A2","E4"]}],"tips":"4/4 strum pattern. G and D are the main two chords \u2014 Am only comes in on the second half."},
+  {"title":"Wish You Were Here","artist":"Pink Floyd","genre":"Classic Rock","diff":"Intermediate","chords":["G","C","D","Am"],"parts":[{"name":"Intro Riff","tab":{"e":"----------3-5-3-0-","B":"------5-3---------","G":"--5-4-------------","D":"5-----------------","A":"------------------","E":"------------------"},"notes":["D3","A2","G4","B3","E4"]},{"name":"Verse","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","E4","D3","G3"]}],"tips":"The intro riff is what everyone recognizes. Learn it slowly on the top 3 strings first."},
+  {"title":"Sweet Home Alabama","artist":"Lynyrd Skynyrd","genre":"Classic Rock","diff":"Intermediate","chords":["D","C","G"],"parts":[{"name":"Main Riff","tab":{"e":"--2---0---3---2---","B":"--3---1---3---3---","G":"--2---0---0---2---","D":"--0---2---0---0---","A":"------3---2-------","E":"----------3---2---"},"notes":["D3","C4","G4","D3"]}],"tips":"The D-C-G three-chord slide is the whole song. Keep strumming rhythmic and loose."},
+  {"title":"Brown Eyed Girl","artist":"Van Morrison","genre":"Classic Rock","diff":"Beginner","chords":["G","C","D","Em"],"parts":[{"name":"Verse / Chorus","tab":{"e":"--3---0---2---0---","B":"--3---1---3---0---","G":"--0---0---2---0---","D":"--0---2---0---2---","A":"--2---3-------2---","E":"3---------2---0---"},"notes":["G4","C4","D3","E3"]}],"tips":"Shuffle rhythm, slightly swung strumming. Goes G-C-G-D then G-C-Em-D for chorus."},
+  {"title":"Wonderful Tonight","artist":"Eric Clapton","genre":"Classic Rock","diff":"Beginner","chords":["G","D","C","Em"],"parts":[{"name":"Intro Melody","tab":{"e":"--3---5---3---2---0-------","B":"--3-----------3---3---1---","G":"--0---0---0---2---0---0---","D":"--0---0---0---0---0---2---","A":"--2-----------0---2---3---","E":"3---3---3---------0-------"},"notes":["G4","A4","G4","D3","E4","C4"]}],"tips":"Fingerpick or very gentle strumming. The melody on the high strings is what makes this song."},
+  {"title":"House of the Rising Sun","artist":"The Animals","genre":"Classic Rock","diff":"Intermediate","chords":["Am","C","D","F","E"],"parts":[{"name":"Intro Arpeggio","tab":{"e":"0---1---0---1---0---","B":"1---1---3---1---0---","G":"2---0---2---2---1---","D":"2---2---0---3---2---","A":"0---3-------3---2---","E":"--------1---1---0---"},"notes":["A2","C4","D3","F3","E2"]}],"tips":"Fingerpick each note one at a time \u2014 this is an arpeggio pattern. Very satisfying once you have it."},
+  {"title":"More Than Words","artist":"Extreme","genre":"Classic Rock","diff":"Intermediate","chords":["G","Cadd9","Am","D","Em"],"parts":[{"name":"Intro","tab":{"e":"3---3---0---0---0---","B":"3---3---1---3---0---","G":"0---0---0---2---0---","D":"0---2---2---0---2---","A":"2---3---3-------2---","E":"3---0---0-------0---"},"notes":["G4","G4","C4","D3","E3"]}],"tips":"Fingerpick or hybrid pick. Let notes ring into each other. The beauty is in letting chords overlap."},
+  {"title":"Wonderwall","artist":"Oasis","genre":"Pop/Rock","diff":"Intermediate","chords":["Em7","G","Dsus4","A7sus4"],"parts":[{"name":"Intro / Verse","tab":{"e":"3-3-3-3-3-3-3-3-","B":"3-3-3-3-3-3-3-3-","G":"0-0-0-0-0-0-0-0-","D":"0-0-2-2-0-0-2-2-","A":"2-2-3-3-2-2-3-3-","E":"0-0-0-0-3-3-0-0-"},"notes":["G4","B3","G3","D3","A2"]}],"tips":"Capo 2 for original key. The Em7 and A7sus4 shapes are unique to this song but easy once you know them."},
+  {"title":"Let Her Go","artist":"Passenger","genre":"Pop/Rock","diff":"Beginner","chords":["G","D","Em","C"],"parts":[{"name":"Intro Picking","tab":{"e":"3---2---0---0---3---","B":"3---3---0---1---3---","G":"0---2---0---0---0---","D":"0---0---2---2---0---","A":"2-------2---3---2---","E":"3-----------0---3---"},"notes":["G4","D3","E3","C4","G4"]}],"tips":"Fingerpick the intro, strum the chorus. G-D-Em-C is one of the most common progressions in pop."},
+  {"title":"Thinking Out Loud","artist":"Ed Sheeran","genre":"Pop","diff":"Intermediate","chords":["D","G","A","Em"],"parts":[{"name":"Verse","tab":{"e":"--2---3---0---0---","B":"--3---3---2---0---","G":"--2---0---2---0---","D":"--0---0---2---2---","A":"------2---0---2---","E":"--2---3-------0---"},"notes":["D3","G4","A2","E3"]}],"tips":"Slow 12/8 feel. Each chord gets two slow downstrokes. The key is keeping it smooth and unhurried."},
+  {"title":"Riptide","artist":"Vance Joy","genre":"Pop","diff":"Beginner","chords":["Am","G","C"],"parts":[{"name":"Verse / Chorus","tab":{"e":"0---3---0---","B":"1---3---1---","G":"2---0---0---","D":"2---0---2---","A":"0---2---3---","E":"----3-------"},"notes":["A2","G4","C4","E3"]}],"tips":"Just three chords the whole song. Capo 1 for original key. Down-down-up-up-down-up strumming."},
+  {"title":"Stay With Me","artist":"Sam Smith","genre":"Pop","diff":"Beginner","chords":["Am","F","C"],"parts":[{"name":"Verse / Chorus","tab":{"e":"0---1---0---","B":"1---1---1---","G":"2---2---0---","D":"2---3---2---","A":"0---3---3---","E":"----1-------"},"notes":["A2","F3","C4","E3"]}],"tips":"Three chords, simple strumming. Great beginner pop song."},
+  {"title":"Shallow","artist":"Lady Gaga and Bradley Cooper","genre":"Pop","diff":"Intermediate","chords":["Em","D","G","C","Am"],"parts":[{"name":"Intro Picking","tab":{"e":"0---2---3---0---","B":"0---3---3---1---","G":"0---2---0---0---","D":"2---0---0---2---","A":"2-------2---3---","E":"0-----------0---"},"notes":["E3","D3","G4","C4","A2"]},{"name":"Chorus","tab":{"e":"--0---3---3---0---","B":"--0---3---0---1---","G":"--0---0---0---0---","D":"--2---0---0---2---","A":"--2---2---2---3---","E":"--0---3---3---0---"},"notes":["E3","G4","D3","C4"]}],"tips":"The intro uses a picked Em-D-G pattern. Chorus strums. Capo 5 for original key."},
+  {"title":"Horse With No Name","artist":"America","genre":"Rock","diff":"Beginner","chords":["Em","D6"],"parts":[{"name":"Main Riff","tab":{"e":"0-2-0-2-0-2-0-2-","B":"0-3-0-3-0-3-0-3-","G":"0-2-0-2-0-2-0-2-","D":"2-0-2-0-2-0-2-0-","A":"2-0-2-0-2-0-2-0-","E":"0---------------"},"notes":["E4","B3","G3","E3"]}],"tips":"Only two chord shapes the whole song. Great for getting comfortable with the Em shape."},
+  {"title":"Creep","artist":"Radiohead","genre":"Rock","diff":"Beginner","chords":["G","B","C","Cm"],"parts":[{"name":"Verse / Chorus","tab":{"e":"3---2---0---0---","B":"3---2---1---0---","G":"0---4---0---0---","D":"0---4---2---1---","A":"2---2---3---3---","E":"3---2---0---3---"},"notes":["G4","B2","C4","C3"]}],"tips":"The Cm is the secret ingredient \u2014 it gives the song its brooding feel. Strum hard on the chorus."},
+  {"title":"Come As You Are","artist":"Nirvana","genre":"Rock","diff":"Beginner","chords":["Em","Am","C"],"parts":[{"name":"Main Riff","tab":{"e":"0---0---0---1---","B":"0---0---0---1---","G":"0---0---0---0---","D":"2---2---1---2---","A":"2---1---3---3---","E":"0---0---0---1---"},"notes":["E4","E3","A2","F3"]}],"tips":"Slow, deliberate picking. Let each note ring. Capo 1 for original key."},
+  {"title":"Seven Nation Army","artist":"The White Stripes","genre":"Rock","diff":"Beginner","chords":[],"parts":[{"name":"Main Riff","tab":{"e":"----------------","B":"----------------","G":"----------------","D":"----------------","A":"7-7-10-7-5-3-2--","E":"----------------"},"notes":["E2","E2","A2","E2","D2","B1","A1"]}],"tips":"Single string riff on the A string. Perfect first riff for beginners. Memorize the fret numbers: 7-7-10-7-5-3-2."},
+  {"title":"Smoke on the Water","artist":"Deep Purple","genre":"Rock","diff":"Beginner","chords":[],"parts":[{"name":"Main Riff","tab":{"e":"------------------","B":"------------------","G":"0-3-5-0-3-6-5-----","D":"0-3-5-0-3-6-5-----","A":"------------------","E":"------------------"},"notes":["G3","A3","C4","G3","A3","D4","C4"]}],"tips":"Two strings at once on G and D. This is one of the most famous riffs in rock history."},
+  {"title":"Hotel California","artist":"Eagles","genre":"Rock","diff":"Advanced","chords":["Am","E","G","D","F","C","Dm"],"parts":[{"name":"Intro Arpeggio","tab":{"e":"0---0---3---2---1---0---2---0---","B":"1---0---0---3---1---1---3---1---","G":"2---1---0---2---2---0---2---2---","D":"2---2---0---0---3---2---0---2---","A":"0---2---2---0---3---3---0---0---","E":"----0---3---2---1---0---2-------"},"notes":["A2","E2","G4","D3","F3","C4","Dm3"]}],"tips":"This intro arpeggio is advanced but iconic. Learn it chord by chord, then connect them slowly."},
+  {"title":"Fast Car","artist":"Tracy Chapman","genre":"Folk/Indie","diff":"Beginner","chords":["C","G","Am","F"],"parts":[{"name":"Verse / Chorus","tab":{"e":"0---3---0---1---","B":"1---3---1---1---","G":"0---0---2---2---","D":"2---0---2---3---","A":"3---2---0---3---","E":"----3-------1---"},"notes":["C4","G4","A2","F3"]}],"tips":"Capo 2 for original key. Simple four-chord loop. Great song to practice steady rhythm."},
+  {"title":"Ho Hey","artist":"The Lumineers","genre":"Folk/Indie","diff":"Beginner","chords":["C","F","G","Am"],"parts":[{"name":"Verse / Chorus","tab":{"e":"0---1---3---0---","B":"1---1---3---1---","G":"0---2---0---2---","D":"2---3---0---2---","A":"3---3---2---0---","E":"----1---3-------"},"notes":["C4","F3","G4","A2"]}],"tips":"Stomp and clap rhythm. The F chord is the trickiest part for beginners \u2014 use a simplified F (x33210)."},
+  {"title":"Banana Pancakes","artist":"Jack Johnson","genre":"Folk/Indie","diff":"Beginner","chords":["G","C","D","E7"],"parts":[{"name":"Verse","tab":{"e":"3---0---2---0---","B":"3---1---3---3---","G":"0---0---2---1---","D":"0---2---0---0---","A":"2---3-------2---","E":"3---0---2---0---"},"notes":["G4","C4","D3","E3"]}],"tips":"Mellow fingerpicking groove. The E7 adds a bluesy twist. Very relaxed tempo."},
+  {"title":"Blackbird","artist":"The Beatles","genre":"Folk/Indie","diff":"Intermediate","chords":["G","Am","C","D"],"parts":[{"name":"Intro","tab":{"e":"0-2-3-2-0-3-2-0-","B":"3-----------3---","G":"0-----------0---","D":"0-----------0---","A":"2-----------2---","E":"3-----------3---"},"notes":["G4","A4","B4","A4","G4","B4","A4","G4"]}],"tips":"Fingerstyle \u2014 thumb plays bass, fingers pick melody simultaneously. One of the most beautiful guitar pieces."},
+  {"title":"Iris","artist":"Goo Goo Dolls","genre":"Rock","diff":"Intermediate","chords":["Bm","Bm/A","G","D","Em"],"capo":5,"parts":[{"name":"Intro / Verse","tab":{"e":"7---7---7---7---7---7---","B":"8---8---7---7---8---8---","G":"7---7---7---7---7---7---","D":"9---9---0---0---9---9---","A":"0---0---0---0---0---0---","E":"------------------------"},"notes":["B3","D4","G4","D4","B3","E4"]},{"name":"Chorus","tab":{"e":"7---7---7---10--10--7---","B":"8---8---8---10--10--8---","G":"7---7---7---11--11--7---","D":"9---9---0---0---0---0---","A":"0---0---0---0---0---0---","E":"------------------------"},"notes":["B3","G4","D4","A4","G4"]}],"tips":"Capo 5. Uses an open D tuning on top strings. The signature sound is the droning open A and D strings ringing behind the chord shapes."},
+  {"title":"Girls","artist":"Beastie Boys","genre":"Rock","diff":"Beginner","chords":[],"capo":0,"parts":[{"name":"Main Riff","tab":{"e":"--------------------","B":"--------------------","G":"--------------------","D":"--5-5-5-3-----------","A":"--3-3-3-1-5-5-5-3---","E":"----------3-3-3-1---"},"notes":["A2","A2","G2","C3","C3","A2"]},{"name":"Verse Groove","tab":{"e":"--------------------","B":"--------------------","G":"--------------------","D":"--5-5---3-3---------","A":"--3-3---1-1-5-5-3-3-","E":"--------0-0-3-3-1-1-"},"notes":["A2","G2","C3","A2","G2"]}],"tips":"Mostly a bass-driven song \u2014 these riffs work great on the low strings. Keep it tight and punchy, short notes not long ones."},
+  {"title":"Whiskey Glasses","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---3---0---0---","B":"--3---3---1---0---","G":"--0---0---0---0---","D":"--0---0---2---2---","A":"--2---2---3---2---","E":"3---3---0---0-----"},"notes":["G4","G4","C4","E3"]},{"name":"Chorus","tab":{"e":"--3---0---2---0---","B":"--3---1---3---0---","G":"--0---0---2---0---","D":"--0---2---0---2---","A":"--2---3-------2---","E":"3---------2---0---"},"notes":["G4","C4","D3","E3"]}],"tips":"Capo 2 for original key. Down-strum on beats 1 and 3, add up-strums on 2 and 4."},
+  {"title":"Cowgirls","artist":"Morgan Wallen ft. ERNEST","genre":"Country","diff":"Intermediate","chords":["G","C","D","Em"],"capo":2,"parts":[{"name":"Intro / Main Riff","tab":{"e":"--3---3---3---3---","B":"--3---3---3---3---","G":"--0---0---0---0---","D":"--0---2---0---2---","A":"--2---3---2---3---","E":"3-----------3-----"},"notes":["G4","B3","G3","D3"]},{"name":"Chorus","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","C4","D3","G4"]}],"tips":"Capo 2. The G chord shape anchors the whole song. Focus on smooth G to C transitions."},
+  {"title":"7 Summers","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","D","Em","C"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]}],"tips":"Classic G-D-Em-C four-chord loop. Slow ballad tempo, let the chords ring out fully."},
+  {"title":"Sand In My Boots","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","C","D"],"capo":2,"parts":[{"name":"Verse / Chorus","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","C4","D3","G4"]}],"tips":"Capo 2. Three chords the whole song. Perfect slow strum practice."},
+  {"title":"Wasted On You","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["Em","C","G","D"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--0---0---3---2---","B":"--0---1---3---3---","G":"--0---0---0---2---","D":"--2---2---0---0---","A":"--2---3---2-------","E":"0---------3---2---"},"notes":["E3","C4","G4","D3"]},{"name":"Chorus","tab":{"e":"--0---0---3---2---","B":"--0---1---3---3---","G":"--0---0---0---2---","D":"--2---2---0---0---","A":"--2---3---2-------","E":"0---------3---2---"},"notes":["E3","C4","G4","D3"]}],"tips":"Em-C-G-D repeating loop. Fingerpick the verse, strum the chorus for dynamics."},
+  {"title":"More Than My Hometown","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":2,"parts":[{"name":"Verse","tab":{"e":"--3---0---3---0---","B":"--3---1---3---0---","G":"--0---0---0---0---","D":"--0---2---0---2---","A":"--2---3---2---2---","E":"3---0---3---0-----"},"notes":["G4","C4","G4","E3"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]}],"tips":"Capo 2 for original key. The verse alternates G and C. Chorus breaks into the four-chord loop."},
+  {"title":"Last Night","artist":"Morgan Wallen","genre":"Country","diff":"Intermediate","chords":["Am","F","C","G"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--0---1---0---3---","B":"--1---1---1---3---","G":"--2---2---0---0---","D":"--2---3---2---0---","A":"--0---3---3---2---","E":"----1---0---3-----"},"notes":["A2","F3","C4","G4"]},{"name":"Chorus","tab":{"e":"--0---1---0---3---","B":"--1---1---1---3---","G":"--2---2---0---0---","D":"--2---3---2---0---","A":"--0---3---3---2---","E":"----1---0---3-----"},"notes":["A2","F3","C4","G4"]}],"tips":"Am-F-C-G is one of pop-country's most common progressions. Driving eighth-note strum pattern."},
+  {"title":"You Proof","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","C","D"],"capo":0,"parts":[{"name":"Verse / Chorus","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","C4","D3","G4"]}],"tips":"Simple G-C-D country strum. Great song for practicing steady down-up rhythm."},
+  {"title":"One Thing At A Time","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":2,"parts":[{"name":"Verse","tab":{"e":"--3---3---0---0---","B":"--3---3---1---0---","G":"--0---0---0---0---","D":"--0---0---2---2---","A":"--2---2---3---2---","E":"3---3---0---0-----"},"notes":["G4","G4","C4","E3"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]}],"tips":"Capo 2. Title track from his biggest album. The verse sits on G and C before the chorus opens up."},
+  {"title":"Thought You Should Know","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","C","D"],"capo":2,"parts":[{"name":"Verse / Chorus","tab":{"e":"--3---0---2---","B":"--3---1---3---","G":"--0---0---2---","D":"--0---2---0---","A":"--2---3-------","E":"3---------2---"},"notes":["G4","C4","D3"]}],"tips":"Capo 2. A heartfelt ballad. Let each chord breathe with slow, gentle strumming."},
+  {"title":"Chasin You","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---0---2---0---","B":"--3---1---3---0---","G":"--0---0---2---0---","D":"--0---2---0---2---","A":"--2---3-------2---","E":"3---------2---0---"},"notes":["G4","C4","D3","E3"]}],"tips":"Smooth fingerpicking or light strumming works great here. Very singable and beginner-friendly."},
+  {"title":"Neon Eyes","artist":"Morgan Wallen","genre":"Country","diff":"Intermediate","chords":["G","D","Em","C"],"capo":0,"parts":[{"name":"Intro / Verse","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]}],"tips":"From his debut album. The four-chord loop drives the whole song at a mid-tempo groove."},
+  {"title":"Burnin It Down","artist":"Jason Aldean","genre":"Country","diff":"Beginner","chords":["G","Em","C","D"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---0---0---2---","B":"--3---0---1---3---","G":"--0---0---0---2---","D":"--0---2---2---0---","A":"--2---2---3-------","E":"3---0---0---2-----"},"notes":["G4","E3","C4","D3"]},{"name":"Chorus","tab":{"e":"--3---0---0---2---","B":"--3---0---1---3---","G":"--0---0---0---2---","D":"--0---2---2---0---","A":"--2---2---3-------","E":"3---0---0---2-----"},"notes":["G4","E3","C4","D3"]}],"tips":"Slow burn country. Let each chord ring. The G-Em-C-D loop runs the whole song."},
+  {"title":"Love Somebody","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":2,"parts":[{"name":"Verse","tab":{"e":"--3---0---3---0---","B":"--3---1---3---0---","G":"--0---0---0---0---","D":"--0---2---0---2---","A":"--2---3---2---2---","E":"3---0---3---0-----"},"notes":["G4","C4","G4","E3"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---1---0---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------3---2---","E":"3---2---0---0-----"},"notes":["G4","D3","C4","E3"]}],"tips":"Capo 2. From One Thing At A Time. Midtempo strum, gentle and smooth."},
+  {"title":"One Man Band","artist":"Old Dominion","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---0---0---2---","B":"--3---1---0---3---","G":"--0---0---0---2---","D":"--0---2---2---0---","A":"--2---3---2-------","E":"3---0---0---2-----"},"notes":["G4","C4","E3","D3"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]}],"tips":"Capo 2 for original key. Smooth country pop. Alternate between fingerpicking the verse and strumming the chorus."},
+  {"title":"Your Man","artist":"Josh Turner","genre":"Country","diff":"Beginner","chords":["D","G","A"],"capo":0,"parts":[{"name":"Verse / Chorus","tab":{"e":"--2---3---0---2---","B":"--3---3---2---3---","G":"--2---0---2---2---","D":"--0---0---2---0---","A":"------2---0-------","E":"--2---3---0---2---"},"notes":["D3","G4","A2","D3"]}],"tips":"Deep voice, low-key groove. The D-G-A loop stays the same throughout. Nice and easy."},
+  {"title":"Black","artist":"Dierks Bentley","genre":"Country","diff":"Intermediate","chords":["Em","D","C","G"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--0---2---0---3---","B":"--0---3---1---3---","G":"--0---2---0---0---","D":"--2---0---2---0---","A":"--2-------3---2---","E":"0---2---0---3-----"},"notes":["E3","D3","C4","G4"]},{"name":"Chorus","tab":{"e":"--0---3---0---2---","B":"--0---3---1---3---","G":"--0---0---0---2---","D":"--2---0---2---0---","A":"--2---2---3-------","E":"0---3---0---2-----"},"notes":["E3","G4","C4","D3"]}],"tips":"Dark, moody feel. Em to D is the core movement. Let the Em chord breathe on beat 1."},
+  {"title":"Play It Again","artist":"Luke Bryan","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":2,"parts":[{"name":"Verse","tab":{"e":"--3---0---3---2---","B":"--3---1---3---3---","G":"--0---0---0---2---","D":"--0---2---0---0---","A":"--2---3---2-------","E":"3---0---3---2-----"},"notes":["G4","C4","G4","D3"]},{"name":"Chorus","tab":{"e":"--3---0---2---0---","B":"--3---1---3---0---","G":"--0---0---2---0---","D":"--0---2---0---2---","A":"--2---3-------2---","E":"3---------2---0---"},"notes":["G4","C4","D3","E3"]}],"tips":"Capo 2. Luke Bryan summertime feel. Down-down-up-up-down strum pattern throughout."},
+  {"title":"Beautiful Crazy","artist":"Luke Combs","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---0---0---2---","B":"--3---1---0---3---","G":"--0---0---0---2---","D":"--0---2---2---0---","A":"--2---3---2-------","E":"3---0---0---2-----"},"notes":["G4","C4","E3","D3"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---1---0---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------3---2---","E":"3---2---0---------"},"notes":["G4","D3","C4","E3"]}],"tips":"One of the prettiest Luke Combs songs. Slow strum, let the chords ring. Great fingerpicking song too."},
+  {"title":"One Thing Right","artist":"Kane Brown","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---0---3---2---","B":"--3---1---3---3---","G":"--0---0---0---2---","D":"--0---2---0---0---","A":"--2---3---2-------","E":"3---0---3---2-----"},"notes":["G4","C4","G4","D3"]},{"name":"Chorus","tab":{"e":"--3---0---0---2---","B":"--3---1---0---3---","G":"--0---0---0---2---","D":"--0---2---2---0---","A":"--2---3---2-------","E":"3---0---0---2-----"},"notes":["G4","C4","E3","D3"]}],"tips":"Ft. Marshmello. Pop-country crossover with a big chorus. Four chords the whole way through."},
+  {"title":"Blue Aint Your Color","artist":"Keith Urban","genre":"Country","diff":"Intermediate","chords":["Em","G","C","D"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--0---3---0---2---","B":"--0---3---1---3---","G":"--0---0---0---2---","D":"--2---0---2---0---","A":"--2---2---3-------","E":"0---3---0---2-----"},"notes":["E3","G4","C4","D3"]},{"name":"Chorus","tab":{"e":"--0---3---0---2---","B":"--0---3---1---3---","G":"--0---0---0---2---","D":"--2---0---2---0---","A":"--2---2---3-------","E":"0---3---0---2-----"},"notes":["E3","G4","C4","D3"]}],"tips":"Capo 4 for original key. Smooth and soulful. Great song to practice transitioning Em to G cleanly."},
+  {"title":"Need You Now","artist":"Lady Antebellum","genre":"Country","diff":"Beginner","chords":["G","D","Em","C"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]}],"tips":"Classic country-pop ballad. G-D-Em-C the whole way. Slow strumming, perfect for singing along."},
+  {"title":"Beer Cant Fix","artist":"Thomas Rhett","genre":"Country","diff":"Beginner","chords":["G","C","D"],"capo":0,"parts":[{"name":"Verse / Chorus","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","C4","D3","G4"]}],"tips":"Ft. Jon Pardi. Upbeat and fun. Three chords, driving strum. Great crowd-pleaser."},
+  {"title":"Die A Happy Man","artist":"Thomas Rhett","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---0---3---2---","B":"--3---1---3---3---","G":"--0---0---0---2---","D":"--0---2---0---0---","A":"--2---3---2-------","E":"3---0---3---2-----"},"notes":["G4","C4","G4","D3"]},{"name":"Chorus","tab":{"e":"--3---0---0---2---","B":"--3---1---0---3---","G":"--0---0---0---2---","D":"--0---2---2---0---","A":"--2---3---2-------","E":"3---0---0---2-----"},"notes":["G4","C4","E3","D3"]}],"tips":"One of the most romantic country songs. Slow and heartfelt. Let each chord ring fully."},
+  {"title":"In Case You Didnt Know","artist":"Brett Young","genre":"Country","diff":"Beginner","chords":["G","D","Em","C"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]}],"tips":"Beautiful beginner ballad. Slow strum or fingerpick. Capo 1 for original key."},
+  {"title":"When It Rains It Pours","artist":"Luke Combs","genre":"Country","diff":"Beginner","chords":["G","C","D"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","C4","D3","G4"]},{"name":"Chorus","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","C4","D3","G4"]}],"tips":"Luke Combs debut hit. Three chords, upbeat strum pattern. Very singable and fun to play."},
+  {"title":"Thinkin Bout Me","artist":"Morgan Wallen","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":2,"parts":[{"name":"Verse","tab":{"e":"--3---0---0---3---","B":"--3---1---0---3---","G":"--0---0---0---0---","D":"--0---2---2---0---","A":"--2---3---2---2---","E":"3---0---0---3-----"},"notes":["G4","C4","E3","G4"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---1---0---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------3---2---","E":"3---2---0---------"},"notes":["G4","D3","C4","E3"]}],"tips":"Capo 2. From One Thing At A Time. Bright and catchy, mid-tempo strum."},
+  {"title":"Choosing Texas","artist":"Ella Langley","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":2,"parts":[{"name":"Verse","tab":{"e":"--3---3---0---0---","B":"--3---3---1---0---","G":"--0---0---0---0---","D":"--0---0---2---2---","A":"--2---2---3---2---","E":"3---3---0---0-----"},"notes":["G4","G4","C4","E3"]},{"name":"Chorus","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","C4","D3","G4"]}],"tips":"Capo 2. Smooth modern country with a Texas feel. The G-C-D-Em loop is the whole song."},
+  {"title":"Heaven","artist":"Kane Brown","genre":"Country","diff":"Beginner","chords":["G","D","Em","C"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]}],"tips":"Capo 1 for original key. Slow, heartfelt ballad. G-D-Em-C the whole song. Perfect for singing along."},
+  {"title":"One Of Them Girls","artist":"Lee Brice","genre":"Country","diff":"Beginner","chords":["G","C","D","Em"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---0---2---0---","B":"--3---1---3---0---","G":"--0---0---2---0---","D":"--0---2---0---2---","A":"--2---3-------2---","E":"3---------2---0---"},"notes":["G4","C4","D3","E3"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---1---0---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------3---2---","E":"3---2---0---------"},"notes":["G4","D3","C4","E3"]}],"tips":"Smooth mid-tempo country. G-C-D-Em four chord loop. Great singalong song."},
+  {"title":"Hurricane","artist":"Luke Combs","genre":"Country","diff":"Beginner","chords":["G","C","D"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","C4","D3","G4"]},{"name":"Chorus","tab":{"e":"--3---0---2---3---","B":"--3---1---3---3---","G":"--0---0---2---0---","D":"--0---2---0---0---","A":"--2---3-------2---","E":"3---------2---3---"},"notes":["G4","C4","D3","G4"]}],"tips":"Luke Combs breakout hit. Driving G-C-D strum pattern. Keep energy high on the chorus."},
+  {"title":"Rock and A Hard Place","artist":"Bailey Zimmerman","genre":"Country","diff":"Beginner","chords":["G","D","Em","C"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]},{"name":"Chorus","tab":{"e":"--3---2---0---0---","B":"--3---3---0---1---","G":"--0---2---0---0---","D":"--0---0---2---2---","A":"--2-------2---3---","E":"3---2---0---------"},"notes":["G4","D3","E3","C4"]}],"tips":"His breakout hit. G-D-Em-C the whole song. Big driving strum on the chorus, softer on the verse."},
+  {"title":"Get Low (Acoustic)","artist":"Dan Henig (orig. Lil Jon)","genre":"Rap","diff":"Intermediate","chords":["Em","D","C","B7"],"capo":0,"parts":[{"name":"Main Riff (Em - D - C - B7)","tab":{"e":"0-------2-0-----","B":"0-------3-1-0---","G":"0-------2-0-0---","D":"2-------0-2-0---","A":"2-------0-3-2---","E":"0-------0---0---"},"notes":["E3","D3","C4","B2"]},{"name":"Verse Riff","tab":{"e":"3-2-0---3-2-0---","B":"0-0-0---0-0-0---","G":"0-2-0---0-2-0---","D":"0-0-2---0-0-2---","A":"0-0-3---0-0-3---","E":"0-------0-------"},"notes":["G4","D3","E3","G4","D3","E3"]}],"tips":"Dan Henig plays this in Em. The magic is the Em-D-C-B7 descending bassline. Pick each string cleanly and let notes ring into each other. Start very slowly."},
+  {"title":"The Scientist","artist":"Coldplay","genre":"Pop/Rock","diff":"Beginner","chords":["Dm","Bb","F","C"],"capo":0,"parts":[{"name":"Intro / Verse","tab":{"e":"1-------1---0---","B":"3-------3---1---","G":"2-------3---0---","D":"0-------3---2---","A":"0-------1---3---","E":"1---------------"},"notes":["D3","Bb2","F3","C4"]},{"name":"Chorus","tab":{"e":"0---1---0---0---","B":"1---3---1---1---","G":"0---2---2---0---","D":"2---0---3---2---","A":"3---0---3---3---","E":"0---1---1---0---"},"notes":["C4","D3","Bb2","F3"]}],"tips":"One of Coldplay's most iconic songs. The Dm-Bb-F-C loop runs the whole song. Fingerpick the intro slowly."},
+  {"title":"Yellow","artist":"Coldplay","genre":"Pop/Rock","diff":"Beginner","chords":["B","Badd11","F#","E","Emaj7"],"capo":0,"parts":[{"name":"Intro Riff","tab":{"e":"2---2---2---2---","B":"4---4---2---0---","G":"4---4---2---1---","D":"4---4---2---2---","A":"2---2---0---2---","E":"2---2---2---0---"},"notes":["B2","F#3","E3","B3"]},{"name":"Verse / Chorus","tab":{"e":"2---2---0---0---","B":"4---4---0---0---","G":"4---4---1---1---","D":"4---4---2---2---","A":"2---2---2---2---","E":"2---2---0---0---"},"notes":["B2","B2","E3","E3"]}],"tips":"Capo 0, key of B. The whole song sits on B and E chords with small variations. Big strumming on the chorus."},
+  {"title":"Fix You","artist":"Coldplay","genre":"Pop/Rock","diff":"Beginner","chords":["C","G","Am","F"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"0---3---0---1---","B":"1---3---1---1---","G":"0---0---2---2---","D":"2---0---2---3---","A":"3---2---0---3---","E":"0---3---0---1---"},"notes":["C4","G4","A2","F3"]},{"name":"Chorus","tab":{"e":"0---3---0---1---","B":"1---3---1---1---","G":"0---0---2---2---","D":"2---0---2---3---","A":"3---2---0---3---","E":"0---3---0---1---"},"notes":["C4","G4","A2","F3"]}],"tips":"C-G-Am-F all the way through. Gentle fingerpicking on the verse, build to big strums on the chorus climax."},
+  {"title":"Clocks","artist":"Coldplay","genre":"Pop/Rock","diff":"Intermediate","chords":["Eb","Bbm","Fm"],"capo":0,"parts":[{"name":"Main Riff","tab":{"e":"----------------","B":"----------------","G":"8---5---3---5---","D":"8---5---3---5---","A":"6---3---1---3---","E":"----------------"},"notes":["Eb3","Bb2","F2","Bb2"]},{"name":"Verse","tab":{"e":"3---1---6---1---","B":"4---1---6---1---","G":"3---1---5---1---","D":"5---3---8---3---","A":"6---3---8---3---","E":"3---1---6---1---"},"notes":["Eb3","Bbm2","Fm2","Bbm2"]}],"tips":"The piano riff adapted for guitar. The G-D-A string triplet pattern is the signature. Start slow and keep it even."},
+  {"title":"A Sky Full Of Stars","artist":"Coldplay","genre":"Pop/Rock","diff":"Beginner","chords":["Am","F","C","G"],"capo":0,"parts":[{"name":"Verse / Chorus","tab":{"e":"0---1---0---3---","B":"1---1---1---3---","G":"2---2---0---0---","D":"2---3---2---0---","A":"0---3---3---2---","E":"0---1---0---3---"},"notes":["A2","F3","C4","G4"]}],"tips":"Am-F-C-G the whole song. Big driving strum for that anthemic festival feel. Capo 0."},
+  {"title":"Sparks","artist":"Coldplay","genre":"Pop/Rock","diff":"Beginner","chords":["F","Am","G","C"],"capo":0,"parts":[{"name":"Intro / Verse","tab":{"e":"1---0---3---0---","B":"1---1---3---1---","G":"2---2---0---0---","D":"3---2---0---2---","A":"3---0---2---3---","E":"1---0---3---0---"},"notes":["F3","A2","G4","C4"]}],"tips":"Hidden gem from Parachute. Soft fingerpicking, very gentle. Great song for practicing clean chord changes."},
+  {"title":"In My Place","artist":"Coldplay","genre":"Pop/Rock","diff":"Beginner","chords":["A","E","D","F#m"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"0---0---2---2---","B":"2---0---3---2---","G":"2---1---2---2---","D":"2---2---0---4---","A":"0---2---0---4---","E":"0---0---2---2---"},"notes":["A2","E2","D3","F#2"]},{"name":"Chorus","tab":{"e":"0---0---2---2---","B":"2---0---3---2---","G":"2---1---2---2---","D":"2---2---0---4---","A":"0---2---0---4---","E":"0---0---2---2---"},"notes":["A2","E2","D3","F#2"]}],"tips":"Driving eighth note strumming. The A-E-D-F#m loop powers the whole track. Strum hard and rhythmically."},
+  {"title":"Shiver","artist":"Coldplay","genre":"Pop/Rock","diff":"Intermediate","chords":["G","D","Am","C","Em"],"capo":0,"parts":[{"name":"Intro Riff","tab":{"e":"3-2-0---0---0---","B":"3-3-3---1---0---","G":"0-2-2---0---0---","D":"0-0-2---2---2---","A":"2---0---3---2---","E":"3-------0---0---"},"notes":["G4","D3","C4","Em3"]}],"tips":"Great guitar-driven Coldplay track. The intro riff walks down from G through D to Am. Keep picking clean and steady."},
+  {"title":"The Bad Touch","artist":"Bloodhound Gang","genre":"Rock","diff":"Beginner","chords":["Em","G","D","A"],"capo":0,"parts":[{"name":"Main Riff","tab":{"e":"0---0---3---2---","B":"0---0---3---3---","G":"0---0---0---2---","D":"2---0---0---0---","A":"2---2---2---0---","E":"0---3---3---2---"},"notes":["E3","G4","D3","A2"]},{"name":"Verse","tab":{"e":"0---3---2---0---","B":"0---3---3---2---","G":"0---0---2---2---","D":"2---0---0---2---","A":"2---2---0---0---","E":"0---3---2---0---"},"notes":["E3","G4","D3","A2"]}],"tips":"Fun late 90s rock. Em-G-D-A drives the whole song. Keep the strum punchy and upbeat."},
+  {"title":"Zombie","artist":"The Cranberries","genre":"Rock","diff":"Beginner","chords":["Em","C","G","D"],"capo":0,"parts":[{"name":"Verse","tab":{"e":"0---0---3---2---","B":"0---1---3---3---","G":"0---0---0---2---","D":"2---2---0---0---","A":"2---3---2---0---","E":"0---0---3---2---"},"notes":["E3","C4","G4","D3"]},{"name":"Chorus","tab":{"e":"0---0---3---2---","B":"0---1---3---3---","G":"0---0---0---2---","D":"2---2---0---0---","A":"2---3---2---0---","E":"0---0---3---2---"},"notes":["E3","C4","G4","D3"]}],"tips":"Em-C-G-D the whole song. Power chords on the chorus for extra punch. One of the most recognisable riffs of the 90s."},
+  {"title":"Linger","artist":"The Cranberries","genre":"Pop/Rock","diff":"Beginner","chords":["D","Dsus2","G","A"],"capo":0,"parts":[{"name":"Intro / Verse","tab":{"e":"2---0---3---0---","B":"3---3---3---2---","G":"2---2---0---2---","D":"0---0---0---2---","A":"0---0---2---0---","E":"2---2---3---0---"},"notes":["D3","D3","G4","A2"]},{"name":"Chorus","tab":{"e":"2---0---3---0---","B":"3---3---3---2---","G":"2---2---0---2---","D":"0---0---0---2---","A":"0---0---2---0---","E":"2---2---3---0---"},"notes":["D3","D3","G4","A2"]}],"tips":"Beautiful gentle song. The D to Dsus2 movement is the signature \u2014 just lift your index finger off the B string. Fingerpick or light strum."},
+  {"title":"Somebody That I Used To Know","artist":"Gotye ft. Kimbra","genre":"Pop/Rock","diff":"Intermediate","chords":["Dm","C","Bb","F"],"capo":0,"parts":[{"name":"Intro Riff","tab":{"e":"0---3---1---0---","B":"1---3---3---1---","G":"2---0---3---2---","D":"0---0---3---3---","A":"0---2---1---3---","E":"1---3---1---1---"},"notes":["D3","G4","Bb2","F3"]},{"name":"Verse","tab":{"e":"0---3---1---0---","B":"1---3---3---1---","G":"2---0---3---2---","D":"0---0---3---3---","A":"0---2---1---3---","E":"1---3---1---1---"},"notes":["D3","G4","Bb2","F3"]},{"name":"Chorus","tab":{"e":"1---0---3---1---","B":"3---1---3---3---","G":"3---2---0---3---","D":"3---3---0---3---","A":"1---3---2---1---","E":"1---1---3---1---"},"notes":["Bb2","F3","G4","Bb2"]}],"tips":"The xylophone melody from the original translates beautifully to guitar. Dm-C-Bb-F is the main loop. Fingerpick the intro, strum the chorus."}
+];
+
+
+
+
+
+
+
+
+
+
+
+
+function ChordDiagram({ name }) {
+  const sh = CHORDS[name];
+  if (!sh) return null;
+  const NX=8, NG=14, NS=6, NF=4, NY=18, FH=16;
+  const W = NX*2 + NG*(NS-1), H = NY + FH*NF + 8;
+  return (
+    <div style={{textAlign:"center"}}>
+      <div style={{color:C.amber,fontWeight:700,fontSize:16,marginBottom:8}}>{name}</div>
+      <svg width={W} height={H}>
+        <rect x={NX} y={NY-3} width={NG*(NS-1)} height={3} fill={C.text}/>
+        {Array.from({length:NF+1},(_,f)=>(
+          <line key={f} x1={NX} y1={NY+f*FH} x2={NX+NG*(NS-1)} y2={NY+f*FH} stroke={C.fret} strokeWidth={1}/>
+        ))}
+        {Array.from({length:NS},(_,s)=>(
+          <line key={s} x1={NX+s*NG} y1={NY} x2={NX+s*NG} y2={NY+NF*FH} stroke={C.string} strokeWidth={1}/>
+        ))}
+        {sh.dots.map(({s,f,n},i)=>{
+          const cx=NX+s*NG, cy=NY+(f-0.5)*FH;
+          return (
+            <g key={i}>
+              <circle cx={cx} cy={cy} r={6} fill={C.amber}/>
+              <text x={cx} y={cy+4} textAnchor="middle" fontSize={8} fill="#1A1A1F">{n}</text>
+            </g>
+          );
+        })}
+        {sh.open.map(s=>(
+          <circle key={s} cx={NX+s*NG} cy={NY-9} r={4} fill="none" stroke={C.sage} strokeWidth={1.5}/>
+        ))}
+        {sh.muted.map(s=>{
+          const cx=NX+s*NG;
+          return (
+            <g key={s}>
+              <line x1={cx-4} y1={NY-13} x2={cx+4} y2={NY-5} stroke={C.coral} strokeWidth={1.5}/>
+              <line x1={cx+4} y1={NY-13} x2={cx-4} y2={NY-5} stroke={C.coral} strokeWidth={1.5}/>
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{fontFamily:"monospace",fontSize:10,color:C.muted,marginTop:6}}>{sh.label}</div>
+    </div>
+  );
+}
+
+
+const NOTE_FRET_MAP = {
+  "E2":{str:5,fret:0},"F2":{str:5,fret:1},"F#2":{str:5,fret:2},"G2":{str:5,fret:3},
+  "G#2":{str:5,fret:4},"A2":{str:4,fret:0},"A#2":{str:4,fret:1},"Bb2":{str:4,fret:1},
+  "B2":{str:4,fret:2},"C3":{str:4,fret:3},"C#3":{str:4,fret:4},"D3":{str:3,fret:0},
+  "D#3":{str:3,fret:1},"E3":{str:3,fret:2},"F3":{str:3,fret:3},"F#3":{str:3,fret:4},
+  "G3":{str:2,fret:0},"G#3":{str:2,fret:1},"A3":{str:2,fret:2},"A#3":{str:2,fret:3},
+  "Bb3":{str:2,fret:3},"B3":{str:1,fret:0},"C4":{str:1,fret:1},"C#4":{str:1,fret:2},
+  "D4":{str:1,fret:3},"D#4":{str:1,fret:4},"E4":{str:0,fret:0},"F4":{str:0,fret:1},
+  "F#4":{str:0,fret:2},"G4":{str:0,fret:3},"G#4":{str:0,fret:4},"A4":{str:0,fret:5},
+};
+
+const STRING_NAMES = ["e","B","G","D","A","E"];
+
+function Tip({ children }) {
+  return (
+    <div style={{background:"rgba(212,168,71,0.08)",borderLeft:"3px solid "+C.amber,borderRadius:"0 8px 8px 0",padding:"12px 16px",fontSize:14,color:"#D4C9A8",margin:"18px 0"}}>
+      {children}
+    </div>
+  );
+}
+
+function Btn({ onClick, children, variant, disabled }) {
+  const styles = {
+    primary: {background:C.amber, color:"#1A1A1F", border:"none"},
+    secondary: {background:C.bg3, color:C.text, border:"1px solid "+C.fret},
+    success: {background:C.sage, color:"#fff", border:"none"},
+    danger: {background:C.coral, color:"#fff", border:"none"},
+  };
+  const s = styles[variant] || styles.primary;
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{...s, padding:"10px 20px", borderRadius:8, fontFamily:"sans-serif", fontSize:14, fontWeight:600,
+        cursor:disabled?"wait":"pointer", opacity:disabled?0.6:1, display:"inline-flex", alignItems:"center", gap:6}}>
+      {children}
+    </button>
+  );
+}
+
+function MicPill({ listening }) {
+  return (
+    <div style={{display:"inline-flex",alignItems:"center",gap:7,padding:"5px 11px",borderRadius:20,
+      background:listening?"rgba(107,143,110,0.12)":"rgba(58,58,72,0.4)",
+      border:"1px solid "+(listening?C.sage:C.fret)}}>
+      <div style={{width:7,height:7,borderRadius:"50%",background:listening?C.sage:C.fret,flexShrink:0}}/>
+      <span style={{fontSize:12,fontWeight:600,color:listening?C.sage:C.muted}}>
+        {listening ? "Mic on" : "Mic off"}
+      </span>
+    </div>
+  );
+}
+
+function LyricsPanel({ title, artist }) {
+  const query = encodeURIComponent(artist + " " + title + " lyrics");
+  const geniusSearch = "https://genius.com/search?q=" + encodeURIComponent(artist + " " + title);
+  const googleSearch = "https://www.google.com/search?q=" + query;
+  return (
+    <div style={{marginTop:16,padding:16,background:"#0E0E12",borderRadius:10,border:"1px solid "+C.fret}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+        <span style={{fontSize:18}}>🎤</span>
+        <span style={{fontWeight:600,fontSize:14,color:C.text}}>Lyrics</span>
+      </div>
+      <p style={{fontSize:13,color:C.muted,marginBottom:12,lineHeight:1.5}}>
+        Tap a link below to open the lyrics in your browser and sing along while you play:
+      </p>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <a href={geniusSearch} target="_blank" rel="noreferrer"
+          style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
+            background:C.bg2,border:"1px solid "+C.fret,borderRadius:8,textDecoration:"none",color:C.text}}>
+          <span style={{fontSize:16}}>🔍</span>
+          <div>
+            <div style={{fontWeight:600,fontSize:13}}>Search on Genius</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:1}}>{artist} - {title}</div>
+          </div>
+        </a>
+        <a href={googleSearch} target="_blank" rel="noreferrer"
+          style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
+            background:C.bg2,border:"1px solid "+C.fret,borderRadius:8,textDecoration:"none",color:C.text}}>
+          <span style={{fontSize:16}}>🌐</span>
+          <div>
+            <div style={{fontWeight:600,fontSize:13}}>Search on Google</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:1}}>{title} lyrics</div>
+          </div>
+        </a>
+      </div>
+      <div style={{marginTop:10,fontSize:11,color:C.muted,textAlign:"right"}}>
+        Lyrics via <a href="https://genius.com" target="_blank" rel="noreferrer"
+          style={{color:C.amber,textDecoration:"none"}}>Genius.com</a>
+      </div>
+    </div>
+  );
+}
+
+const ENCOURAGEMENTS = ["Great job!","You nailed it!","Awesome!","Nicely done!","Keep it up!","Sounding good!","That was perfect!","You rock!"];
+
+function SongPlayer({ parts, detected, listening, onStartMic }) {
+  const [partIdx, setPartIdx] = useState(0);
+  const [active, setActive] = useState(false);
+  const [noteIdx, setNoteIdx] = useState(0);
+  const [dotStates, setDotStates] = useState({});
+  const [done, setDone] = useState(false);
+  const [encouragement, setEncouragement] = useState("");
+  const timerRef = useRef(null);
+
+  const allParts = parts || [];
+  const currentPart = allParts[partIdx] || {};
+  const currentNotes = currentPart.notes || [];
+
+  // Build a flat sequence: [{partIdx, noteIdx, note}]
+  const sequence = allParts.flatMap((p,pi)=>
+    (p.notes||[]).map((note,ni)=>({pi, ni, note}))
+  );
+
+  const [seqIdx, setSeqIdx] = useState(0);
+
+  const stop = useCallback(()=>{
+    setActive(false);
+    if(timerRef.current) clearTimeout(timerRef.current);
+    setSeqIdx(0); setNoteIdx(0); setPartIdx(0);
+    setDotStates({}); setDone(false); setEncouragement("");
+  },[]);
+
+  const advance = useCallback((si, seq)=>{
+    if(si >= seq.length){
+      setActive(false);
+      setDone(true);
+      setEncouragement(ENCOURAGEMENTS[Math.floor(Math.random()*ENCOURAGEMENTS.length)]);
+      return;
+    }
+    const {pi, ni, note} = seq[si];
+    setSeqIdx(si);
+    setPartIdx(pi);
+    setNoteIdx(ni);
+    setDotStates(s=>({...s,[pi+"-"+ni]:"cur"}));
+    timerRef.current = setTimeout(()=>{
+      setDotStates(s=>({...s,[pi+"-"+ni]:"miss"}));
+      advance(si+1, seq);
+    }, 6000);
+  },[]);
+
+  const start = useCallback(()=>{
+    stop();
+    if(!listening && onStartMic) onStartMic();
+    setTimeout(()=>{
+      setActive(true);
+      setDone(false);
+      setDotStates({});
+      advance(0, sequence);
+    }, 300);
+  },[sequence, stop, advance, listening, onStartMic]);
+
+  useEffect(()=>{
+    if(!active || !detected) return;
+    const cur = sequence[seqIdx];
+    if(!cur) return;
+    if(detected === cur.note){
+      if(timerRef.current) clearTimeout(timerRef.current);
+      setDotStates(s=>({...s,[cur.pi+"-"+cur.ni]:"hit"}));
+      setTimeout(()=>advance(seqIdx+1, sequence), 400);
+    }
+  },[detected, active, seqIdx, sequence, advance]);
+
+  useEffect(()=>()=>{ if(timerRef.current) clearTimeout(timerRef.current); },[]);
+
+  const NUM_FRETS=6, NS=6, W=320, H=240;
+  const TOP=24, BOT=H-24, LEFT=44, RIGHT=W-12;
+  const strGap=(BOT-TOP)/(NS-1);
+  const fretGap=(RIGHT-LEFT)/NUM_FRETS;
+
+  const renderFretboard = (pIdx) => {
+    const pNotes = (allParts[pIdx]||{}).notes||[];
+    return (
+      <svg width={W} height={H} style={{display:"block",margin:"0 auto"}}>
+        <line x1={LEFT} y1={TOP-2} x2={LEFT} y2={BOT+2} stroke={C.text} strokeWidth={3}/>
+        {Array.from({length:NUM_FRETS+1},(_,f)=>(
+          <line key={f} x1={LEFT+f*fretGap} y1={TOP} x2={LEFT+f*fretGap} y2={BOT} stroke={C.fret} strokeWidth={1}/>
+        ))}
+        {Array.from({length:NS},(_,s)=>(
+          <line key={s} x1={LEFT} y1={TOP+s*strGap} x2={RIGHT} y2={TOP+s*strGap}
+            stroke={C.string} strokeWidth={s===0?0.8:s===5?2:1.2}/>
+        ))}
+        {STRING_NAMES.map((n,s)=>(
+          <text key={s} x={LEFT-10} y={TOP+s*strGap+4} textAnchor="middle"
+            fontSize={10} fill={C.amber} fontFamily="monospace" fontWeight="600">{n}</text>
+        ))}
+        {Array.from({length:NUM_FRETS},(_,f)=>(
+          <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
+            fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
+        ))}
+        {pNotes.map((note,ni)=>{
+          const p = NOTE_FRET_MAP[note];
+          if(!p) return null;
+          const isOpen = p.fret===0;
+          const baseX = isOpen ? LEFT+0.5*fretGap : LEFT+(p.fret-0.5)*fretGap;
+          const baseY = TOP+p.str*strGap;
+          const sameSpot = pNotes.slice(0,ni).filter(n2=>{
+            const q=NOTE_FRET_MAP[n2]; return q&&q.fret===p.fret&&q.str===p.str;
+          }).length;
+          const cx = baseX + sameSpot*32;
+          const cy = baseY;
+          const stateKey = pIdx+"-"+ni;
+          const state = dotStates[stateKey];
+          const isCur = active && state==="cur";
+          const isHit = state==="hit";
+          const isMiss = state==="miss";
+          const fill = isHit?C.sage:isMiss?C.coral:isCur?C.amber:C.amber;
+          const opacity = isHit||isCur||isMiss?1:0.7;
+          return (
+            <g key={ni}>
+              <circle cx={cx} cy={cy} r={18} fill={isHit?"rgba(107,143,110,0.15)":isCur?"rgba(212,168,71,0.2)":"rgba(212,168,71,0.12)"}/>
+              <circle cx={cx} cy={cy} r={14}
+                fill={isOpen?(isHit?C.sage:isCur?C.amber:"transparent"):fill}
+                stroke={isOpen?(isHit?C.sage:isCur?C.amber:C.amber):"none"}
+                strokeWidth={isOpen?2.5:0}
+                opacity={opacity}/>
+              <text x={cx} y={cy+5} textAnchor="middle" fontSize={14}
+                fill={isOpen?(isHit?C.sage:C.amber):"#1A1A1F"} fontWeight="800" fontFamily="monospace">
+                {ni+1}
+              </text>
+              {isCur && (
+                <text x={cx} y={cy-22} textAnchor="middle" fontSize={18}>🎸</text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
+  return (
+    <div style={{marginBottom:16}}>
+      {allParts.length > 1 && (
+        <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+          {allParts.map((p,i)=>(
+            <button key={i} onClick={()=>!active&&setPartIdx(i)}
+              style={{padding:"3px 12px",borderRadius:14,fontSize:11,fontWeight:600,
+                cursor:active?"default":"pointer",fontFamily:"sans-serif",
+                border:"1px solid "+(i===partIdx?C.amber:C.fret),
+                background:i===partIdx?"rgba(212,168,71,0.1)":"transparent",
+                color:i===partIdx?C.amber:C.muted}}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {allParts.length===1 && (
+        <div style={{fontSize:11,fontWeight:600,letterSpacing:"1.5px",textTransform:"uppercase",
+          color:C.amber,marginBottom:10}}>{currentPart.name}</div>
+      )}
+
+      <div style={{background:"#0A0A0E",borderRadius:10,padding:"10px 6px",border:"1px solid "+(active?"rgba(212,168,71,0.3)":C.fret),overflowX:"auto",
+        transition:"border-color 0.3s"}}>
+        {renderFretboard(partIdx)}
+        {currentNotes.length > 0 && (
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginTop:4,padding:"0 8px"}}>
+            {currentNotes.map((n,i)=>{
+              const p = NOTE_FRET_MAP[n];
+              return (
+                <div key={i} style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:C.muted}}>
+                  <span style={{color:C.amber,fontWeight:700}}>{i+1}</span>
+                  <span style={{fontFamily:"monospace",color:C.text}}>{n}</span>
+                  {p&&<span style={{color:C.muted}}>({STRING_NAMES[p.str]} fr{p.fret})</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0",flexWrap:"wrap"}}>
+        <MicPill listening={listening}/>
+        {!active && !done && (
+          <Btn onClick={start} variant="success">🎸 Play Along</Btn>
+        )}
+        {active && (
+          <Btn onClick={stop} variant="danger">Stop</Btn>
+        )}
+        {done && (
+          <>
+            <span style={{fontSize:18,fontWeight:700,color:C.sage}}>{encouragement}</span>
+            <Btn onClick={start} variant="secondary">Play Again</Btn>
+          </>
+        )}
+        {active && !listening && (
+          <span style={{fontSize:12,color:C.coral}}>Enable mic below first</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
+const OPEN_NOTES = [
+  {label:"Low E string",note:"E2"},{label:"A string",note:"A2"},{label:"D string",note:"D3"},
+  {label:"G string",note:"G3"},{label:"B string",note:"B3"},{label:"High e string",note:"E4"},
+];
+
+function OpenStringPractice({ detected, onTarget }) {
+  const [idx, setIdx] = useState(0);
+  const [done, setDone] = useState({});
+
+  useEffect(()=>{ onTarget(idx < OPEN_NOTES.length ? OPEN_NOTES[idx].note : null); },[idx]);
+
+  useEffect(()=>{
+    if (!detected || idx >= OPEN_NOTES.length) return;
+    if (detected === OPEN_NOTES[idx].note){
+      setDone(d=>({...d,[idx]:true}));
+      setTimeout(()=>setIdx(i=>i+1), 700);
+    }
+  },[detected, idx]);
+
+  return (
+    <div style={{background:"#0E0E12",border:"1px dashed "+C.fret,borderRadius:12,padding:28,textAlign:"center",margin:"20px 0"}}>
+      {idx < OPEN_NOTES.length ? (
+        <>
+          <div style={{fontSize:14,color:C.muted,marginBottom:6}}>Pluck this string:</div>
+          <div style={{fontSize:44,fontWeight:800,color:C.amber,lineHeight:1,margin:"8px 0"}}>{OPEN_NOTES[idx].label}</div>
+          <div style={{fontFamily:"monospace",fontSize:13,color:C.muted}}>Target: {OPEN_NOTES[idx].note}</div>
+        </>
+      ) : (
+        <div style={{fontSize:18,fontWeight:600,color:C.sage}}>All 6 open strings done!</div>
+      )}
+      <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginTop:16}}>
+        {OPEN_NOTES.map((s,i)=>(
+          <div key={i} style={{padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontSize:12,
+            border:"1px solid "+(done[i]?C.sage:i===idx?C.amber:C.fret),
+            color:done[i]?C.sage:i===idx?C.amber:C.muted,
+            background:done[i]?"rgba(107,143,110,0.1)":i===idx?"rgba(212,168,71,0.1)":"transparent"}}>
+            {s.note}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const LESSON6_SONGS = SONG_LIBRARY.slice(0,4);
+
+function PlayAlong({ detected, listening }) {
+  const [sel, setSel] = useState(null);
+  const songs = LESSON6_SONGS;
+  const notes = sel !== null ? songs[sel].parts.flatMap(p=>p.notes||[]) : [];
+
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,margin:"16px 0"}}>
+        {songs.map((s,i)=>(
+          <div key={i} onClick={()=>setSel(i)}
+            style={{background:sel===i?"rgba(212,168,71,0.06)":"#111115",
+              border:"1px solid "+(sel===i?C.amber:C.fret),borderRadius:10,padding:14,cursor:"pointer"}}>
+            <div style={{fontWeight:600,fontSize:14,marginBottom:3}}>{s.title}</div>
+            <div style={{fontSize:12,color:C.muted}}>{s.artist}</div>
+            <div style={{fontSize:11,color:C.amber,fontWeight:600,marginTop:6}}>{s.diff}</div>
+          </div>
+        ))}
+      </div>
+      {sel !== null && (
+        <div>
+          <SongPlayer parts={songs[sel].parts} detected={detected} listening={listening}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SongSearch({ detected, listening, onStartMic }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [song, setSong] = useState(null);
+
+  const GENRES = [...new Set(SONG_LIBRARY.map(s=>s.genre))];
+
+  const doSearch = (q) => {
+    setQuery(q);
+    if (!q.trim()){ setResults([]); return; }
+    const lower = q.toLowerCase();
+    const matches = SONG_LIBRARY.filter(s=>
+      s.title.toLowerCase().includes(lower) ||
+      s.artist.toLowerCase().includes(lower) ||
+      s.genre.toLowerCase().includes(lower) ||
+      s.diff.toLowerCase().includes(lower)
+    ).slice(0,50);
+    setResults(matches);
+  };
+
+  const pick = (s) => { setSong(s); setResults([]); setQuery(s.title); };
+  const reset = () => { setSong(null); setQuery(""); setResults([]); };
+
+  const diffColor = (d) => d==="Beginner"?C.sage:d==="Intermediate"?C.amber:C.coral;
+  const diffBg = (d) => d==="Beginner"?"rgba(107,143,110,0.15)":d==="Intermediate"?"rgba(212,168,71,0.15)":"rgba(224,92,75,0.15)";
+
+  const FEATURED = ["Whiskey Glasses","Cowgirls","Last Night","Beautiful Crazy","Die A Happy Man","In Case You Didnt Know","Need You Now","7 Summers","Iris","Wonderwall"];
+
+  return (
+    <div style={{marginTop:20}}>
+      <div style={{fontSize:11,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase",color:C.muted,marginBottom:12}}>
+        Search any song
+      </div>
+      <div style={{position:"relative",marginBottom:4}}>
+        <input value={query} onChange={e=>doSearch(e.target.value)}
+          placeholder="Song title, artist, or genre..."
+          style={{width:"100%",background:"#111115",border:"1px solid "+C.fret,borderRadius:8,
+            padding:"11px 36px 11px 14px",fontFamily:"sans-serif",fontSize:14,color:C.text,outline:"none"}}
+        />
+        {query && (
+          <button onClick={reset}
+            style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
+              background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1,padding:0}}>
+            x
+          </button>
+        )}
+      </div>
+
+      {results.length > 0 && (
+        <div style={{background:"#111115",border:"1px solid "+C.fret,borderRadius:8,marginBottom:12,overflow:"hidden"}}>
+          {results.map((s,i)=>(
+            <div key={i} onClick={()=>pick(s)}
+              style={{padding:"10px 14px",cursor:"pointer",
+                borderBottom:i<results.length-1?"1px solid "+C.fret:"none",
+                display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontWeight:600,fontSize:14}}>{s.title}</div>
+                <div style={{fontSize:12,color:C.muted,marginTop:2}}>{s.artist}</div>
+              </div>
+              <div style={{fontSize:11,color:C.amber,fontWeight:600,flexShrink:0,marginLeft:12}}>{s.genre}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!query && !song && (
+        <div style={{marginTop:12}}>
+          <div style={{fontSize:12,color:C.muted,marginBottom:8}}>Browse by difficulty:</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+            {["Beginner","Intermediate","Advanced"].map(d=>(
+              <button key={d} onClick={()=>doSearch(d)}
+                style={{padding:"4px 12px",borderRadius:16,fontSize:12,fontWeight:600,
+                  cursor:"pointer",fontFamily:"sans-serif",
+                  border:"1px solid "+(d==="Beginner"?C.sage:d==="Intermediate"?C.amber:C.coral),
+                  background:"transparent",
+                  color:d==="Beginner"?C.sage:d==="Intermediate"?C.amber:C.coral}}>
+                {d}
+              </button>
+            ))}
+          </div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:8}}>Browse by genre:</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+            {GENRES.map(g=>(
+              <button key={g} onClick={()=>doSearch(g)}
+                style={{padding:"4px 12px",borderRadius:16,fontSize:12,fontWeight:500,
+                  cursor:"pointer",fontFamily:"sans-serif",border:"1px solid "+C.fret,
+                  background:"transparent",color:C.muted}}>
+                {g}
+              </button>
+            ))}
+          </div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:8}}>Popular picks:</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {FEATURED.map(t=>{
+              const s = SONG_LIBRARY.find(x=>x.title===t);
+              if (!s) return null;
+              return (
+                <div key={t} onClick={()=>pick(s)}
+                  style={{background:"#111115",border:"1px solid "+C.fret,borderRadius:8,
+                    padding:"10px 14px",cursor:"pointer",display:"flex",
+                    justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:14}}>{s.title}</div>
+                    <div style={{fontSize:12,color:C.muted}}>{s.artist}</div>
+                  </div>
+                  <div style={{padding:"3px 9px",borderRadius:5,fontSize:11,fontWeight:600,
+                    flexShrink:0,marginLeft:12,background:diffBg(s.diff),color:diffColor(s.diff)}}>
+                    {s.diff}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {song && (
+        <div style={{marginTop:16}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,marginBottom:12,flexWrap:"wrap"}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:20,lineHeight:1.2}}>{song.title}</div>
+              <div style={{fontSize:13,color:C.muted,marginTop:3}}>{song.artist}</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>
+                {(song.chords||[]).map(ch=>(
+                  <span key={ch} style={{padding:"2px 9px",borderRadius:10,fontSize:12,fontWeight:600,
+                    background:"rgba(212,168,71,0.12)",color:C.amber,border:"1px solid rgba(212,168,71,0.3)"}}>
+                    {ch}
+                  </span>
+                ))}
+                {song.capo > 0 && (
+                  <span style={{padding:"2px 9px",borderRadius:10,fontSize:12,fontWeight:600,
+                    background:"rgba(212,168,71,0.12)",color:C.amber,border:"1px solid rgba(212,168,71,0.3)"}}>
+                    Capo {song.capo}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div style={{padding:"4px 10px",borderRadius:6,fontSize:12,fontWeight:600,
+              flexShrink:0,background:diffBg(song.diff),color:diffColor(song.diff)}}>
+              {song.diff}
+            </div>
+          </div>
+          {song.tips && <Tip>Tip: {song.tips}</Tip>}
+          <SongPlayer parts={song.parts} detected={detected} listening={listening} onStartMic={onStartMic}/>
+          <LyricsPanel title={song.title} artist={song.artist}/>
+          <div style={{marginTop:16}}>
+            <button onClick={reset}
+              style={{fontSize:13,color:C.muted,background:"none",border:"none",cursor:"pointer",
+                padding:0,fontFamily:"sans-serif"}}>
+              Back to search
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const LESSONS = [
+  {title:"How to Hold a Guitar",  eyebrow:"Lesson 1 - Getting Started",    next:"Next: Reading Tab"},
+  {title:"Reading Guitar Tab",    eyebrow:"Lesson 2 - Tab Basics",         next:"Next: Your First Notes"},
+  {title:"Your First Notes",      eyebrow:"Lesson 3 - Open Strings",       next:"Next: Your First Chord"},
+  {title:"Your First Chord: Em",  eyebrow:"Lesson 4 - Chords",             next:"Next: More Chords"},
+  {title:"G, C, and D Chords",    eyebrow:"Lesson 5 - Essential Chords",   next:"Next: Play a Song"},
+  {title:"Play-Along Songs",      eyebrow:"Lesson 6 - Songs",              next:"Next: Keep Practicing"},
+  {title:"Keep Going",            eyebrow:"Lesson 7 - Next Steps",         next:"Search Any Song"},
+  {title:"Search Any Song",       eyebrow:"Lesson 8 - Free Play",          next:null},
+];
+
+function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
+  if (id === 0) return (
+    <div style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75}}>
+      <p>Before you play a single note, get your posture right. Good posture prevents pain and speeds up progress.</p>
+      <Tip>Sit with the guitar waist on your right leg. Back straight, neck angled slightly up. Thumb behind the neck, fingers curling over the fretboard.</Tip>
+      <p>Your strumming hand hovers over the soundhole. For now use your thumb, sweeping downward across the strings.</p>
+      <div style={{height:1,background:C.fret,margin:"20px 0"}}/>
+      <p style={{fontSize:14,color:C.muted}}>Strings thick to thin: <strong style={{color:C.text}}>E A D G B e</strong> - remember with "Elephants And Donkeys Grow Big Ears."</p>
+    </div>
+  );
+  if (id === 1) return (
+    <div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>Tab shows you exactly where to put your fingers. No music theory needed. Each line is a string, numbers are frets.</p>
+      <div style={{background:"#111115",borderRadius:10,padding:"18px 22px",border:"1px solid "+C.fret,overflowX:"auto"}}>
+        {[
+          {s:"e",v:["--","0","--","--","--","3","--"]},
+          {s:"B",v:["--","--","0","--","--","3","--"]},
+          {s:"G",v:["--","--","--","0","--","0","--"]},
+          {s:"D",v:["--","--","--","--","--","0","--"]},
+          {s:"A",v:["--","--","--","--","--","2","--"]},
+          {s:"E",v:["0","--","--","--","--","3","--"]},
+        ].map(({s,v})=>(
+          <div key={s} style={{display:"flex",alignItems:"center",height:26}}>
+            <span style={{fontFamily:"monospace",fontSize:13,fontWeight:600,color:C.amber,width:22}}>{s}</span>
+            <span style={{fontFamily:"monospace",fontSize:13,color:C.string,marginRight:4}}>|</span>
+            {v.map((val,i)=>(
+              <span key={i} style={{fontFamily:"monospace",fontSize:14,width:22,textAlign:"center",
+                color:val==="--"?C.string:i>=5?C.amber:C.text,fontWeight:val!=="--"?600:400}}>
+                {val}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+      <Tip>Read left to right. 0 = open string. 2 = press 2nd fret. Numbers stacked vertically = chord.</Tip>
+    </div>
+  );
+  if (id === 2) return (
+    <div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:4}}>Start with open strings. Enable the mic and the app confirms each note as you pluck.</p>
+      <OpenStringPractice detected={detected} onTarget={onTarget}/>
+      <Tip>Press just behind the fret wire, not on top of it.</Tip>
+    </div>
+  );
+  if (id === 3) return (
+    <div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>Em is the easiest chord on guitar. Only 2 fingers. Am uses 3 fingers in a similar shape.</p>
+      <div style={{display:"flex",gap:20,flexWrap:"wrap",margin:"16px 0"}}>
+        <ChordDiagram name="Em"/><ChordDiagram name="Am"/>
+      </div>
+      <Tip>Em: middle finger 2nd fret A string, ring finger 2nd fret D string. Strum all 6 strings.</Tip>
+    </div>
+  );
+  if (id === 4) return (
+    <div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>G, C, and D unlock hundreds of songs. Together with Em and Am you have most of what you need.</p>
+      <div style={{display:"flex",gap:20,flexWrap:"wrap",margin:"16px 0"}}>
+        <ChordDiagram name="G"/><ChordDiagram name="C"/><ChordDiagram name="D"/>
+      </div>
+      <Tip>Classic progression: G - D - Em - C. Drill the transitions slowly, accuracy before speed.</Tip>
+    </div>
+  );
+  if (id === 5) return (
+    <div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:4}}>You know enough to play real songs. Pick one and play along!</p>
+      <PlayAlong detected={detected} listening={listening}/>
+    </div>
+  );
+  if (id === 6) return (
+    <div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75}}>You made it through the basics. Here is what to work on next:</p>
+      <Tip>Practice 15 minutes every day. Beats a 2-hour session once a week.</Tip>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75}}>
+        <strong style={{color:C.text}}>Weeks 1-2:</strong> Drill chord switches until automatic.<br/>
+        <strong style={{color:C.text}}>Weeks 3-4:</strong> Try bar chords. F and Bm are tough but worth it.<br/>
+        <strong style={{color:C.text}}>Month 2:</strong> Fingerpicking. Arpeggios sound beautiful.
+      </p>
+      <div style={{marginTop:20,padding:20,background:"#0E0E12",borderRadius:12,
+        border:"1px dashed "+C.amber,textAlign:"center"}}>
+        <div style={{fontSize:28,marginBottom:8}}>Search</div>
+        <div style={{fontWeight:600,fontSize:15,marginBottom:4}}>Ready to play your favourite songs?</div>
+        <div style={{fontSize:13,color:C.muted}}>Lesson 8 lets you search 32 songs and play with mic feedback.</div>
+      </div>
+    </div>
+  );
+  if (id === 7) return (
+    <div>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:4}}>Search any song from our library. Tab loads instantly with mic play-along.</p>
+      <SongSearch detected={detected} listening={listening} onStartMic={onStartMic}/>
+    </div>
+  );
+  return null;
+}
+
+function MicBar({ note, hz, feedback, listening, onToggle }) {
+  return (
+    <div style={{position:"fixed",bottom:0,left:0,right:0,
+      background:"rgba(26,26,31,0.97)",backdropFilter:"blur(12px)",
+      borderTop:"1px solid "+C.fret,padding:"14px 28px",
+      display:"flex",alignItems:"center",gap:16,zIndex:100}}>
+      <button onClick={onToggle}
+        style={{width:46,height:46,borderRadius:"50%",
+          border:"2px solid "+(listening?C.coral:C.fret),
+          background:listening?"rgba(224,92,75,0.15)":C.bg2,
+          fontSize:20,cursor:"pointer",flexShrink:0,
+          display:"flex",alignItems:"center",justifyContent:"center"}}>
+        🎙️
+      </button>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontWeight:700,fontSize:20,color:C.text,lineHeight:1}}>{note||"-"}</div>
+        <div style={{fontFamily:"monospace",fontSize:11,color:C.muted,marginTop:2}}>{hz||"tap mic to start"}</div>
+      </div>
+      {feedback && (
+        <div style={{padding:"5px 14px",borderRadius:18,fontSize:13,fontWeight:600,flexShrink:0,
+          background:feedback==="correct"?"rgba(107,143,110,0.2)":"rgba(224,92,75,0.15)",
+          color:feedback==="correct"?C.sage:C.coral,
+          border:"1px solid "+(feedback==="correct"?C.sage:C.coral)}}>
+          {feedback==="correct"?"Nice!":"Try again"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const [splash, setSplash] = useState(true);
+  const [lesson, setLesson] = useState(0);
+  const [listening, setListening] = useState(false);
+  const [pitchNote, setPitchNote] = useState("");
+  const [pitchHz, setPitchHz] = useState("");
+  const [feedback, setFeedback] = useState(null);
+  const [target, setTarget] = useState(null);
+  const [detected, setDetected] = useState(null);
+
+  const ctxRef = useRef(null);
+  const analyserRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(null);
+  const fbTimerRef = useRef(null);
+
+  const stopMic = useCallback(()=>{
+    if (streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (ctxRef.current) ctxRef.current.close();
+    ctxRef.current=null; analyserRef.current=null; streamRef.current=null;
+    setListening(false); setPitchNote(""); setPitchHz(""); setDetected(null);
+  },[]);
+
+  const startMic = useCallback(async()=>{
+    if (listening){ stopMic(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      streamRef.current=stream; ctxRef.current=ctx; analyserRef.current=analyser;
+      setListening(true); setPitchHz("listening...");
+      const buf = new Float32Array(analyser.fftSize);
+      const loop = ()=>{
+        rafRef.current = requestAnimationFrame(loop);
+        analyser.getFloatTimeDomainData(buf);
+        const freq = autoCorrelate(buf, ctx.sampleRate);
+        if (freq > 0){
+          const r = freqToNote(freq);
+          if (r){
+            setPitchNote(r.name);
+            setPitchHz(Math.round(freq)+" Hz");
+            setDetected(r.name);
+          }
+        }
+      };
+      loop();
+    } catch(e){ setPitchHz("mic denied"); }
+  },[listening, stopMic]);
+
+  useEffect(()=>{
+    if (!detected || !target) return;
+    if (detected === target){
+      if (fbTimerRef.current) return;
+      setFeedback("correct");
+      fbTimerRef.current = setTimeout(()=>{ setFeedback(null); fbTimerRef.current=null; }, 1200);
+    }
+  },[detected, target]);
+
+  useEffect(()=>()=>stopMic(),[]);
+
+  const go = (n)=>{ setLesson(n); setSplash(false); };
+  const prog = Math.round((lesson+1)/LESSONS.length*100);
+
+  const css = "*{box-sizing:border-box;margin:0;padding:0} body{background:#1A1A1F} input::placeholder{color:#9A9490} p+p{margin-top:10px}";
+
+  if (splash) return (
+    <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"sans-serif",display:"flex",flexDirection:"column"}}>
+      <style>{css}</style>
+      <div style={{padding:"18px 32px",borderBottom:"1px solid "+C.fret,fontWeight:800,fontSize:22}}>
+        <span style={{color:C.amber}}>Guitar</span><span>Teacher</span>
+      </div>
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px 80px"}}>
+        <div style={{maxWidth:520,width:"100%",textAlign:"center"}}>
+          <div style={{fontSize:50,marginBottom:14}}>🎸</div>
+          <h1 style={{fontWeight:800,fontSize:34,lineHeight:1.15,marginBottom:12}}>
+            Learn guitar, <span style={{color:C.amber}}>your way.</span>
+          </h1>
+          <p style={{fontSize:15,color:"#C8C5BE",lineHeight:1.7,maxWidth:400,margin:"0 auto 32px"}}>
+            Start from the very beginning or jump straight to playing songs you love.
+          </p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
+            <button onClick={()=>go(0)}
+              style={{background:C.bg2,border:"1px solid "+C.amber,borderRadius:14,padding:"22px 16px",
+                cursor:"pointer",textAlign:"left",fontFamily:"sans-serif"}}>
+              <div style={{fontSize:26,marginBottom:8}}>📖</div>
+              <div style={{fontWeight:700,fontSize:15,color:C.text,marginBottom:5}}>Start from basics</div>
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Never played? We cover everything from holding the guitar to real songs.</div>
+              <div style={{marginTop:12,fontSize:12,fontWeight:600,color:C.amber}}>7 lessons + free play</div>
+            </button>
+            <button onClick={()=>go(7)}
+              style={{background:C.bg2,border:"1px solid "+C.fret,borderRadius:14,padding:"22px 16px",
+                cursor:"pointer",textAlign:"left",fontFamily:"sans-serif"}}>
+              <div style={{fontSize:26,marginBottom:8}}>🔍</div>
+              <div style={{fontWeight:700,fontSize:15,color:C.text,marginBottom:5}}>Search any song</div>
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Know the basics? Search 32 songs and play with mic feedback.</div>
+              <div style={{marginTop:12,fontSize:12,fontWeight:600,color:C.muted}}>Jump to lesson 8</div>
+            </button>
+          </div>
+          <p style={{fontSize:12,color:C.muted}}>You can jump between lessons anytime using the nav.</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"sans-serif",overflowX:"hidden"}}>
+      <style>{css}</style>
+      <div style={{padding:"16px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+C.fret}}>
+        <button onClick={()=>setSplash(true)}
+          style={{fontWeight:800,fontSize:21,background:"none",border:"none",cursor:"pointer",color:C.text,padding:0,fontFamily:"sans-serif"}}>
+          <span style={{color:C.amber}}>Guitar</span><span>Teacher</span>
+        </button>
+        <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:C.muted}}>
+          <span>{lesson+1}/{LESSONS.length}</span>
+          <div style={{width:100,height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}>
+            <div style={{height:"100%",background:C.amber,width:prog+"%",borderRadius:2,transition:"width 0.4s"}}/>
+          </div>
+        </div>
+      </div>
+
+      <div style={{maxWidth:820,margin:"0 auto",padding:"28px 20px 150px"}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:24}}>
+          {LESSONS.map((l,i)=>(
+            <button key={i} onClick={()=>setLesson(i)}
+              style={{padding:"4px 12px",borderRadius:18,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"sans-serif",
+                border:"1px solid "+(i<lesson?C.sage:i===lesson?C.amber:C.fret),
+                background:i===lesson?"rgba(212,168,71,0.08)":"transparent",
+                color:i<lesson?C.sage:i===lesson?C.amber:C.muted}}>
+              {i+1}. {i===7?"Song Search":l.title.split(":")[0]}
+            </button>
+          ))}
+        </div>
+
+        <div style={{background:C.bg2,borderRadius:14,border:"1px solid "+C.fret,padding:32,marginBottom:20}}>
+          <div style={{fontSize:10,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase",color:C.amber,marginBottom:8}}>
+            {LESSONS[lesson].eyebrow}
+          </div>
+          <h1 style={{fontWeight:700,fontSize:26,lineHeight:1.2,marginBottom:18}}>{LESSONS[lesson].title}</h1>
+          <LessonBody id={lesson} detected={detected} onTarget={setTarget} listening={listening} onStartMic={startMic}/>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:24}}>
+            {lesson > 0 && <Btn onClick={()=>setLesson(l=>l-1)} variant="secondary">Back</Btn>}
+            {LESSONS[lesson].next
+              ? <Btn onClick={()=>setLesson(l=>l+1)}>{LESSONS[lesson].next}</Btn>
+              : <div style={{color:C.amber,fontWeight:600,padding:"10px 0"}}>You are all done! Keep playing.</div>}
+          </div>
+        </div>
+      </div>
+
+      <MicBar note={pitchNote} hz={pitchHz} feedback={feedback} listening={listening} onToggle={startMic}/>
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App/>);
+  </script>
+</body>
+</html>
