@@ -1038,36 +1038,59 @@ function GuitarTuner({ onBack, onMenu }) {
             )}
           </div>
 
-          {/* Closest string */}
-          {closestString && (
-            <div style={{background:"#0A0A0E",borderRadius:12,padding:"14px 20px",border:"1px solid "+(inTune?C.sage:C.fret),marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div>
-                <div style={{fontSize:12,color:C.muted,marginBottom:3}}>Closest string</div>
-                <div style={{fontSize:18,fontWeight:700,color:inTune?C.sage:C.text}}>
-                  String {closestString.string} - {closestString.name}
-                </div>
-                <div style={{fontSize:12,color:C.muted,marginTop:2}}>Target: {closestString.freq} Hz</div>
-              </div>
-              <div style={{fontSize:32}}>{inTune ? "✓" : cents < 0 ? "↑" : "↓"}</div>
+          {/* Guitar string visual */}
+          <div style={{background:"#0A0A0E",borderRadius:12,padding:"18px 16px",border:"1px solid "+C.fret,marginBottom:20}}>
+            <div style={{fontSize:11,fontWeight:600,letterSpacing:"1.5px",textTransform:"uppercase",
+              color:C.muted,marginBottom:14,textAlign:"center"}}>
+              {closestString ? (
+                <span>Pluck the <span style={{color:inTune?C.sage:C.amber,fontWeight:800}}>
+                  {closestString.name} string
+                </span> {inTune ? "- In tune!" : (cents<0?"- Tune up (too flat)":"- Tune down (too sharp)")}</span>
+              ) : "Pluck any string to tune"}
             </div>
-          )}
-
-          {/* String reference */}
-          <div style={{background:"#0A0A0E",borderRadius:12,padding:"16px 20px",border:"1px solid "+C.fret,marginBottom:24}}>
-            <div style={{fontSize:11,fontWeight:600,letterSpacing:"1.5px",textTransform:"uppercase",color:C.muted,marginBottom:12}}>Standard Tuning</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8}}>
-              {OPEN_STRINGS.map(s=>{
+            <svg width="100%" viewBox="0 0 340 130" style={{display:"block"}}>
+              {OPEN_STRINGS.map((s,i)=>{
                 const isActive = closestString && closestString.note===s.note;
+                const x1 = 20, x2 = 320;
+                const y = 18 + i*19;
+                const thickness = i===0?2.5:i===1?2.2:i===2?1.8:i===3?1.4:i===4?1.1:0.9;
+                const stringCol = isActive?(inTune?C.sage:C.amber):"#5A5A6A";
+                const glowOpacity = isActive ? 1 : 0;
                 return (
-                  <div key={s.note} style={{textAlign:"center",padding:"8px 4px",borderRadius:8,
-                    background:isActive?(inTune?"rgba(107,143,110,0.15)":"rgba(212,168,71,0.1)"):"transparent",
-                    border:"1px solid "+(isActive?(inTune?C.sage:C.amber):C.fret)}}>
-                    <div style={{fontSize:16,fontWeight:800,color:isActive?(inTune?C.sage:C.amber):C.text}}>{s.name}</div>
-                    <div style={{fontSize:10,color:C.muted,marginTop:2}}>{s.note}</div>
-                  </div>
+                  <g key={s.note}>
+                    {isActive && (
+                      <line x1={x1} y1={y} x2={x2} y2={y}
+                        stroke={inTune?C.sage:C.amber} strokeWidth={thickness+6} opacity={0.15}/>
+                    )}
+                    <line x1={x1} y1={y} x2={x2} y2={y}
+                      stroke={stringCol} strokeWidth={thickness}
+                      strokeLinecap="round"
+                      style={{filter:isActive?("drop-shadow(0 0 4px "+(inTune?C.sage:C.amber)+")"):"none"}}/>
+                    <text x={8} y={y+4} textAnchor="middle" fontSize={9}
+                      fill={isActive?(inTune?C.sage:C.amber):C.muted}
+                      fontFamily="monospace" fontWeight={isActive?"800":"400"}>
+                      {s.name==="Low E"?"E":s.name==="High e"?"e":s.name}
+                    </text>
+                    <text x={332} y={y+4} textAnchor="middle" fontSize={9}
+                      fill={isActive?(inTune?C.sage:C.amber):C.muted}
+                      fontFamily="monospace" fontWeight={isActive?"800":"400"}>
+                      {s.note}
+                    </text>
+                    {isActive && (
+                      <>
+                        <circle cx={160} cy={y} r={8} fill={inTune?C.sage:C.amber} opacity={0.9}/>
+                        <text x={160} y={y+4} textAnchor="middle" fontSize={9}
+                          fill="#1A1A1F" fontWeight="900" fontFamily="monospace">
+                          {inTune?"✓":cents<0?"↑":"↓"}
+                        </text>
+                      </>
+                    )}
+                  </g>
                 );
               })}
-            </div>
+              <line x1={20} y1={10} x2={20} y2={120} stroke={C.muted} strokeWidth={3} strokeLinecap="round"/>
+              <line x1={320} y1={10} x2={320} y2={120} stroke={C.fret} strokeWidth={1}/>
+            </svg>
           </div>
 
           {/* Mic button */}
