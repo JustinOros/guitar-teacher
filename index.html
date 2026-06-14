@@ -150,42 +150,67 @@ const SONG_LIBRARY = [
 function ChordDiagram({ name }) {
   const sh = CHORDS[name];
   if (!sh) return null;
-  const NX=8, NG=14, NS=6, NF=4, NY=18, FH=16;
-  const W = NX*2 + NG*(NS-1), H = NY + FH*NF + 8;
+
+  const NUM_FRETS=5, NS=6, W=320, H=200;
+  const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
+  const strGap=(BOT-TOP)/(NS-1);
+  const fretGap=(RIGHT-LEFT)/NUM_FRETS;
+  const STRING_LABELS=["e","B","G","D","A","E"];
+
+  // Build note list from chord shape: open strings + fretted dots
+  const notes = [];
+  sh.open.forEach(s=>{ notes.push({str:s, fret:0, label:"o", muted:false}); });
+  sh.muted.forEach(s=>{ notes.push({str:s, fret:-1, label:"x", muted:true}); });
+  sh.dots.forEach(({s,f,n})=>{ notes.push({str:s, fret:f, label:n, muted:false, finger:true}); });
+
   return (
-    <div style={{textAlign:"center"}}>
-      <div style={{color:C.amber,fontWeight:700,fontSize:16,marginBottom:8}}>{name}</div>
-      <svg width={W} height={H}>
-        <rect x={NX} y={NY-3} width={NG*(NS-1)} height={3} fill={C.text}/>
-        {Array.from({length:NF+1},(_,f)=>(
-          <line key={f} x1={NX} y1={NY+f*FH} x2={NX+NG*(NS-1)} y2={NY+f*FH} stroke={C.fret} strokeWidth={1}/>
+    <div style={{background:"#0A0A0E",borderRadius:10,padding:"10px 6px",
+      border:"1px solid "+C.fret,marginBottom:8}}>
+      <div style={{textAlign:"center",marginBottom:6,fontWeight:700,fontSize:15,color:C.amber}}>{name}</div>
+      <svg width={W} height={H} style={{display:"block",margin:"0 auto"}}>
+        <line x1={LEFT} y1={TOP-2} x2={LEFT} y2={BOT+2} stroke={C.text} strokeWidth={3}/>
+        {Array.from({length:NUM_FRETS+1},(_,f)=>(
+          <line key={f} x1={LEFT+f*fretGap} y1={TOP} x2={LEFT+f*fretGap} y2={BOT} stroke={C.fret} strokeWidth={1}/>
         ))}
         {Array.from({length:NS},(_,s)=>(
-          <line key={s} x1={NX+s*NG} y1={NY} x2={NX+s*NG} y2={NY+NF*FH} stroke={C.string} strokeWidth={1}/>
+          <line key={s} x1={LEFT} y1={TOP+s*strGap} x2={RIGHT} y2={TOP+s*strGap}
+            stroke={C.string} strokeWidth={s===0?0.8:s===5?2:1.2}/>
         ))}
-        {sh.dots.map(({s,f,n},i)=>{
-          const cx=NX+s*NG, cy=NY+(f-0.5)*FH;
+        {STRING_LABELS.map((n,s)=>(
+          <text key={s} x={LEFT-10} y={TOP+s*strGap+4} textAnchor="middle"
+            fontSize={10} fill={C.amber} fontFamily="monospace" fontWeight="600">{n}</text>
+        ))}
+        {Array.from({length:NUM_FRETS},(_,f)=>(
+          <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
+            fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
+        ))}
+        {sh.muted.map(s=>{
+          const cy=TOP+s*strGap;
           return (
-            <g key={i}>
-              <circle cx={cx} cy={cy} r={6} fill={C.amber}/>
-              <text x={cx} y={cy+4} textAnchor="middle" fontSize={8} fill="#1A1A1F">{n}</text>
+            <g key={"m"+s}>
+              <line x1={LEFT-18} y1={cy-6} x2={LEFT-8} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
+              <line x1={LEFT-8}  y1={cy-6} x2={LEFT-18} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
             </g>
           );
         })}
         {sh.open.map(s=>(
-          <circle key={s} cx={NX+s*NG} cy={NY-9} r={4} fill="none" stroke={C.sage} strokeWidth={1.5}/>
+          <circle key={"o"+s} cx={LEFT-13} cy={TOP+s*strGap} r={5}
+            fill="none" stroke={C.sage} strokeWidth={2}/>
         ))}
-        {sh.muted.map(s=>{
-          const cx=NX+s*NG;
+        {sh.dots.map(({s,f,n},i)=>{
+          const cx = LEFT+(f-0.5)*fretGap;
+          const cy = TOP+s*strGap;
           return (
-            <g key={s}>
-              <line x1={cx-4} y1={NY-13} x2={cx+4} y2={NY-5} stroke={C.coral} strokeWidth={1.5}/>
-              <line x1={cx+4} y1={NY-13} x2={cx-4} y2={NY-5} stroke={C.coral} strokeWidth={1.5}/>
+            <g key={i}>
+              <circle cx={cx} cy={cy} r={14} fill="rgba(212,168,71,0.12)"/>
+              <circle cx={cx} cy={cy} r={11} fill={C.amber}/>
+              <text x={cx} y={cy+5} textAnchor="middle" fontSize={13}
+                fill="#1A1A1F" fontWeight="900" fontFamily="monospace">{n}</text>
             </g>
           );
         })}
       </svg>
-      <div style={{fontFamily:"monospace",fontSize:10,color:C.muted,marginTop:6}}>{sh.label}</div>
+      <div style={{textAlign:"center",fontFamily:"monospace",fontSize:10,color:C.muted,marginTop:4}}>{sh.label}</div>
     </div>
   );
 }
@@ -903,8 +928,9 @@ function HamburgerMenu({ onTuner, onBasics, onSongSearch, onClose }) {
 }
 
 
-function GuitarTuner({ onBack, onMenu }) {
+function GuitarTuner({ onBack, onGoTuner, onGoBasics, onGoSongSearch }) {
   const [listening, setListening] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [detectedNote, setDetectedNote] = useState("");
   const [detectedFreq, setDetectedFreq] = useState(0);
   const [cents, setCents] = useState(0);
@@ -981,13 +1007,19 @@ function GuitarTuner({ onBack, onMenu }) {
           <span style={{color:C.amber}}>Guitar</span><span>Teacher</span>
           <span style={{fontWeight:600,fontSize:14,color:C.muted,marginLeft:8}}>/ Tuner</span>
         </div>
-        <button onClick={()=>onMenu()}
+        <button onClick={()=>setMenuOpen(true)}
           style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",flexDirection:"column",gap:5}}>
           <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
           <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
           <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
         </button>
       </div>
+      {menuOpen && <HamburgerMenu
+        onTuner={()=>{setMenuOpen(false);}}
+        onBasics={()=>{setMenuOpen(false);onGoBasics();}}
+        onSongSearch={()=>{setMenuOpen(false);onGoSongSearch();}}
+        onClose={()=>setMenuOpen(false)}
+      />}
 
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px 20px 60px"}}>
         <div style={{maxWidth:480,width:"100%"}}>
@@ -1227,7 +1259,12 @@ function App() {
 
   const css = "*{box-sizing:border-box;margin:0;padding:0} body{background:#1A1A1F} input::placeholder{color:#9A9490} p+p{margin-top:10px}";
 
-  if (showTuner) return <GuitarTuner onBack={()=>setShowTuner(false)} onMenu={()=>setMenuOpen(true)}/>;
+  if (showTuner) return <GuitarTuner
+    onBack={()=>setShowTuner(false)}
+    onGoTuner={()=>{}}
+    onGoBasics={()=>{setShowTuner(false);setSplash(false);setLesson(0);}}
+    onGoSongSearch={()=>{setShowTuner(false);setSplash(false);setLesson(7);}}
+  />;
 
   if (splash) return (
     <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"sans-serif",display:"flex",flexDirection:"column"}}>
