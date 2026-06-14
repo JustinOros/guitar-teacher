@@ -909,6 +909,9 @@ function GuitarTuner({ onBack, onMenu }) {
   const [detectedFreq, setDetectedFreq] = useState(0);
   const [cents, setCents] = useState(0);
   const [closestString, setClosestString] = useState(null);
+  const [lockedString, setLockedString] = useState(null);
+  const [tuned, setTuned] = useState({});
+  const [currentStringIdx, setCurrentStringIdx] = useState(0);
   const ctxRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef = useRef(null);
@@ -945,7 +948,7 @@ function GuitarTuner({ onBack, onMenu }) {
           setDetectedNote(name+oct);
           setDetectedFreq(Math.round(freq*10)/10);
           setCents(c);
-          const closest = OPEN_STRINGS.reduce((best,s)=>{
+          const closest = lockedString || OPEN_STRINGS.reduce((best,s)=>{
             const diff = Math.abs(freq - s.freq);
             return diff < Math.abs(freq - best.freq) ? s : best;
           }, OPEN_STRINGS[0]);
@@ -958,12 +961,14 @@ function GuitarTuner({ onBack, onMenu }) {
 
   useEffect(()=>()=>stopMic(),[]);
 
-  const inTune = Math.abs(cents) <= 5;
-  const slightlyOff = Math.abs(cents) <= 15;
+  const inTune = Math.abs(cents) <= 8;
+  const slightlyOff = Math.abs(cents) <= 20;
   const needleAngle = Math.max(-45, Math.min(45, cents * 0.9));
   const needleColor = inTune ? C.sage : slightlyOff ? C.amber : C.coral;
   const tuneMsg = inTune ? "In tune!" : cents < 0 ? "Tune up" : "Tune down";
   const tuneMsgColor = inTune ? C.sage : slightlyOff ? C.amber : C.coral;
+  const allTuned = Object.keys(tuned).length === OPEN_STRINGS.length;
+  const activeString = lockedString || OPEN_STRINGS[currentStringIdx];
 
   return (
     <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"sans-serif",display:"flex",flexDirection:"column"}}>
@@ -1038,19 +1043,38 @@ function GuitarTuner({ onBack, onMenu }) {
             )}
           </div>
 
+          {/* String selector tabs */}
+          <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+            {OPEN_STRINGS.map((s,i)=>{
+              const isActive = activeString && activeString.note===s.note;
+              const isDone = tuned[s.note];
+              return (
+                <button key={s.note} onClick={()=>{setLockedString(s);setCurrentStringIdx(i);}}
+                  style={{flex:1,padding:"8px 4px",borderRadius:8,border:"1px solid "+(isDone?C.sage:isActive?C.amber:C.fret),
+                    background:isDone?"rgba(107,143,110,0.15)":isActive?"rgba(212,168,71,0.1)":"transparent",
+                    cursor:"pointer",fontFamily:"sans-serif",textAlign:"center",minWidth:44}}>
+                  <div style={{fontSize:15,fontWeight:800,color:isDone?C.sage:isActive?C.amber:C.text}}>
+                    {s.name==="Low E"?"E":s.name==="High e"?"e":s.name}
+                  </div>
+                  <div style={{fontSize:9,color:isDone?C.sage:C.muted,marginTop:1}}>{isDone?"✓":s.note}</div>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Guitar string visual */}
-          <div style={{background:"#0A0A0E",borderRadius:12,padding:"18px 16px",border:"1px solid "+C.fret,marginBottom:20}}>
-            <div style={{fontSize:11,fontWeight:600,letterSpacing:"1.5px",textTransform:"uppercase",
+          <div style={{background:"#0A0A0E",borderRadius:12,padding:"18px 16px",border:"1px solid "+(inTune&&detectedFreq>0?C.sage:C.fret),marginBottom:12,transition:"border-color 0.3s"}}>
+            <div style={{fontSize:12,fontWeight:600,textTransform:"uppercase",letterSpacing:"1px",
               color:C.muted,marginBottom:14,textAlign:"center"}}>
-              {closestString ? (
-                <span>Pluck the <span style={{color:inTune?C.sage:C.amber,fontWeight:800}}>
-                  {closestString.name} string
+              {detectedFreq>0 ? (
+                <span>Plucking <span style={{color:inTune?C.sage:C.amber,fontWeight:800}}>
+                  {activeString.name} string
                 </span> {inTune ? "- In tune!" : (cents<0?"- Tune up (too flat)":"- Tune down (too sharp)")}</span>
-              ) : "Pluck any string to tune"}
+              ) : <span>Tap a string above, then pluck it on your guitar</span>}
             </div>
             <svg width="100%" viewBox="0 0 340 130" style={{display:"block"}}>
               {OPEN_STRINGS.map((s,i)=>{
-                const isActive = closestString && closestString.note===s.note;
+                const isActive = activeString && activeString.note===s.note;
                 const x1 = 20, x2 = 320;
                 const y = 18 + i*19;
                 const thickness = i===0?2.5:i===1?2.2:i===2?1.8:i===3?1.4:i===4?1.1:0.9;
@@ -1091,6 +1115,31 @@ function GuitarTuner({ onBack, onMenu }) {
               <line x1={20} y1={10} x2={20} y2={120} stroke={C.muted} strokeWidth={3} strokeLinecap="round"/>
               <line x1={320} y1={10} x2={320} y2={120} stroke={C.fret} strokeWidth={1}/>
             </svg>
+          </div>
+
+          {/* Mark tuned + Next */}
+          <div style={{display:"flex",gap:10,marginBottom:12}}>
+            {detectedFreq>0 && inTune && (
+              <button onClick={()=>{
+                setTuned(t=>({...t,[activeString.note]:true}));
+                const nextIdx = currentStringIdx+1 < OPEN_STRINGS.length ? currentStringIdx+1 : currentStringIdx;
+                setCurrentStringIdx(nextIdx);
+                setLockedString(nextIdx!==currentStringIdx ? OPEN_STRINGS[nextIdx] : lockedString);
+              }}
+                style={{flex:1,padding:"11px",borderRadius:10,border:"2px solid "+C.sage,
+                  background:"rgba(107,143,110,0.1)",color:C.sage,fontFamily:"sans-serif",
+                  fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                Mark as tuned - Next string
+              </button>
+            )}
+            {allTuned && (
+              <button onClick={onBack}
+                style={{flex:1,padding:"11px",borderRadius:10,border:"2px solid "+C.sage,
+                  background:C.sage,color:"#fff",fontFamily:"sans-serif",
+                  fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                All tuned! Back to menu
+              </button>
+            )}
           </div>
 
           {/* Mic button */}
