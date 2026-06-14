@@ -35,11 +35,11 @@ function autoCorrelate(buf, sr) {
 }
 
 const CHORDS = {
-  Em:{ dots:[{s:4,f:2,n:"2"},{s:3,f:2,n:"3"}], open:[0,1,2,5], muted:[], label:"x x 0 2 2 0" },
-  Am:{ dots:[{s:1,f:2,n:"1"},{s:2,f:2,n:"2"},{s:3,f:2,n:"3"}], open:[0,1], muted:[5], label:"x 0 2 2 1 0" },
-  G: { dots:[{s:5,f:3,n:"2"},{s:0,f:3,n:"4"},{s:4,f:2,n:"1"},{s:1,f:2,n:"3"}], open:[2,3], muted:[], label:"3 2 0 0 3 3" },
-  C: { dots:[{s:4,f:3,n:"3"},{s:3,f:2,n:"2"},{s:1,f:1,n:"1"}], open:[0,2], muted:[5], label:"x 3 2 0 1 0" },
-  D: { dots:[{s:2,f:2,n:"1"},{s:1,f:3,n:"3"},{s:0,f:2,n:"2"}], open:[3], muted:[4,5], label:"x x 0 2 3 2" },
+  Em:{ dots:[{s:1,f:2,n:"2"},{s:2,f:2,n:"3"}], open:[3,4,5], muted:[], label:"x x 0 2 2 0" },
+  Am:{ dots:[{s:4,f:2,n:"1"},{s:3,f:2,n:"2"},{s:2,f:2,n:"3"}], open:[4,5], muted:[0], label:"x 0 2 2 1 0" },
+  G: { dots:[{s:0,f:3,n:"2"},{s:5,f:3,n:"4"},{s:1,f:2,n:"1"},{s:4,f:2,n:"3"}], open:[2,3], muted:[], label:"3 2 0 0 3 3" },
+  C: { dots:[{s:1,f:3,n:"3"},{s:2,f:2,n:"2"},{s:4,f:1,n:"1"}], open:[3,5], muted:[0], label:"x 3 2 0 1 0" },
+  D: { dots:[{s:3,f:2,n:"1"},{s:4,f:3,n:"3"},{s:5,f:2,n:"2"}], open:[2], muted:[0,1], label:"x x 0 2 3 2" },
 };
 
 const SONG_LIBRARY = [
@@ -129,59 +129,84 @@ const SONG_LIBRARY = [
 function ChordDiagram({ name }) {
   const sh = CHORDS[name];
   if (!sh) return null;
-  const NX=8, NG=14, NS=6, NF=4, NY=18, FH=16;
-  const W = NX*2 + NG*(NS-1), H = NY + FH*NF + 8;
+
+  const NUM_FRETS=5, NS=6, W=320, H=200;
+  const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
+  const strGap=(BOT-TOP)/(NS-1);
+  const fretGap=(RIGHT-LEFT)/NUM_FRETS;
+  const STRING_LABELS=["E","A","D","G","B","e"];
+
+  // Build note list from chord shape: open strings + fretted dots
+  const notes = [];
+  sh.open.forEach(s=>{ notes.push({str:s, fret:0, label:"o", muted:false}); });
+  sh.muted.forEach(s=>{ notes.push({str:s, fret:-1, label:"x", muted:true}); });
+  sh.dots.forEach(({s,f,n})=>{ notes.push({str:s, fret:f, label:n, muted:false, finger:true}); });
+
   return (
-    <div style={{textAlign:"center"}}>
-      <div style={{color:C.amber,fontWeight:700,fontSize:16,marginBottom:8}}>{name}</div>
-      <svg width={W} height={H}>
-        <rect x={NX} y={NY-3} width={NG*(NS-1)} height={3} fill={C.text}/>
-        {Array.from({length:NF+1},(_,f)=>(
-          <line key={f} x1={NX} y1={NY+f*FH} x2={NX+NG*(NS-1)} y2={NY+f*FH} stroke={C.fret} strokeWidth={1}/>
+    <div style={{background:"#0A0A0E",borderRadius:10,padding:"10px 6px",
+      border:"1px solid "+C.fret,marginBottom:8}}>
+      <div style={{textAlign:"center",marginBottom:6,fontWeight:700,fontSize:15,color:C.amber}}>{name}</div>
+      <svg width={W} height={H} style={{display:"block",margin:"0 auto"}}>
+        <line x1={LEFT} y1={TOP-2} x2={LEFT} y2={BOT+2} stroke={C.text} strokeWidth={3}/>
+        {Array.from({length:NUM_FRETS+1},(_,f)=>(
+          <line key={f} x1={LEFT+f*fretGap} y1={TOP} x2={LEFT+f*fretGap} y2={BOT} stroke={C.fret} strokeWidth={1}/>
         ))}
         {Array.from({length:NS},(_,s)=>(
-          <line key={s} x1={NX+s*NG} y1={NY} x2={NX+s*NG} y2={NY+NF*FH} stroke={C.string} strokeWidth={1}/>
+          <line key={s} x1={LEFT} y1={TOP+s*strGap} x2={RIGHT} y2={TOP+s*strGap}
+            stroke={C.string} strokeWidth={s===0?0.8:s===5?2:1.2}/>
         ))}
-        {sh.dots.map(({s,f,n},i)=>{
-          const cx=NX+s*NG, cy=NY+(f-0.5)*FH;
+        {STRING_LABELS.map((n,s)=>(
+          <text key={s} x={LEFT-10} y={TOP+s*strGap+4} textAnchor="middle"
+            fontSize={10} fill={C.amber} fontFamily="monospace" fontWeight="600">{n}</text>
+        ))}
+        {Array.from({length:NUM_FRETS},(_,f)=>(
+          <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
+            fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
+        ))}
+        {sh.muted.map(s=>{
+          const cy=TOP+s*strGap;
           return (
-            <g key={i}>
-              <circle cx={cx} cy={cy} r={6} fill={C.amber}/>
-              <text x={cx} y={cy+4} textAnchor="middle" fontSize={8} fill="#1A1A1F">{n}</text>
+            <g key={"m"+s}>
+              <line x1={LEFT-18} y1={cy-6} x2={LEFT-8} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
+              <line x1={LEFT-8}  y1={cy-6} x2={LEFT-18} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
             </g>
           );
         })}
         {sh.open.map(s=>(
-          <circle key={s} cx={NX+s*NG} cy={NY-9} r={4} fill="none" stroke={C.sage} strokeWidth={1.5}/>
+          <circle key={"o"+s} cx={LEFT-13} cy={TOP+s*strGap} r={5}
+            fill="none" stroke={C.sage} strokeWidth={2}/>
         ))}
-        {sh.muted.map(s=>{
-          const cx=NX+s*NG;
+        {sh.dots.map(({s,f,n},i)=>{
+          const cx = LEFT+(f-0.5)*fretGap;
+          const cy = TOP+s*strGap;
           return (
-            <g key={s}>
-              <line x1={cx-4} y1={NY-13} x2={cx+4} y2={NY-5} stroke={C.coral} strokeWidth={1.5}/>
-              <line x1={cx+4} y1={NY-13} x2={cx-4} y2={NY-5} stroke={C.coral} strokeWidth={1.5}/>
+            <g key={i}>
+              <circle cx={cx} cy={cy} r={14} fill="rgba(212,168,71,0.12)"/>
+              <circle cx={cx} cy={cy} r={11} fill={C.amber}/>
+              <text x={cx} y={cy+5} textAnchor="middle" fontSize={13}
+                fill="#1A1A1F" fontWeight="900" fontFamily="monospace">{n}</text>
             </g>
           );
         })}
       </svg>
-      <div style={{fontFamily:"monospace",fontSize:10,color:C.muted,marginTop:6}}>{sh.label}</div>
+      <div style={{textAlign:"center",fontFamily:"monospace",fontSize:10,color:C.muted,marginTop:4}}>{sh.label}</div>
     </div>
   );
 }
 
 
 const NOTE_FRET_MAP = {
-  "E2":{str:5,fret:0},"F2":{str:5,fret:1},"F#2":{str:5,fret:2},"G2":{str:5,fret:3},
-  "G#2":{str:5,fret:4},"A2":{str:4,fret:0},"A#2":{str:4,fret:1},"Bb2":{str:4,fret:1},
-  "B2":{str:4,fret:2},"C3":{str:4,fret:3},"C#3":{str:4,fret:4},"D3":{str:3,fret:0},
-  "D#3":{str:3,fret:1},"E3":{str:3,fret:2},"F3":{str:3,fret:3},"F#3":{str:3,fret:4},
-  "G3":{str:2,fret:0},"G#3":{str:2,fret:1},"A3":{str:2,fret:2},"A#3":{str:2,fret:3},
-  "Bb3":{str:2,fret:3},"B3":{str:1,fret:0},"C4":{str:1,fret:1},"C#4":{str:1,fret:2},
-  "D4":{str:1,fret:3},"D#4":{str:1,fret:4},"E4":{str:0,fret:0},"F4":{str:0,fret:1},
-  "F#4":{str:0,fret:2},"G4":{str:0,fret:3},"G#4":{str:0,fret:4},"A4":{str:0,fret:5},
+  "E2":{str:0,fret:0},"F2":{str:0,fret:1},"F#2":{str:0,fret:2},"G2":{str:0,fret:3},
+  "G#2":{str:0,fret:4},"A2":{str:1,fret:0},"A#2":{str:1,fret:1},"Bb2":{str:1,fret:1},
+  "B2":{str:1,fret:2},"C3":{str:1,fret:3},"C#3":{str:1,fret:4},"D3":{str:2,fret:0},
+  "D#3":{str:2,fret:1},"E3":{str:2,fret:2},"F3":{str:2,fret:3},"F#3":{str:2,fret:4},
+  "G3":{str:3,fret:0},"G#3":{str:3,fret:1},"A3":{str:3,fret:2},"A#3":{str:3,fret:3},
+  "Bb3":{str:3,fret:3},"B3":{str:4,fret:0},"C4":{str:4,fret:1},"C#4":{str:4,fret:2},
+  "D4":{str:4,fret:3},"D#4":{str:4,fret:4},"E4":{str:5,fret:0},"F4":{str:5,fret:1},
+  "F#4":{str:5,fret:2},"G4":{str:5,fret:3},"G#4":{str:5,fret:4},"A4":{str:5,fret:5},
 };
 
-const STRING_NAMES = ["e","B","G","D","A","E"];
+const STRING_NAMES = ["E","A","D","G","B","e"];
 
 function Tip({ children }) {
   return (
@@ -303,10 +328,6 @@ function SongPlayer({ parts, detected, listening, onStartMic }) {
     setPartIdx(pi);
     setNoteIdx(ni);
     setDotStates(s=>({...s,[pi+"-"+ni]:"cur"}));
-    timerRef.current = setTimeout(()=>{
-      setDotStates(s=>({...s,[pi+"-"+ni]:"miss"}));
-      advance(si+1, seq);
-    }, 6000);
   },[]);
 
   const start = useCallback(()=>{
@@ -333,8 +354,8 @@ function SongPlayer({ parts, detected, listening, onStartMic }) {
 
   useEffect(()=>()=>{ if(timerRef.current) clearTimeout(timerRef.current); },[]);
 
-  const NUM_FRETS=6, NS=6, W=320, H=240;
-  const TOP=24, BOT=H-24, LEFT=44, RIGHT=W-12;
+  const NUM_FRETS=6, NS=6, W=320, H=260;
+  const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
   const strGap=(BOT-TOP)/(NS-1);
   const fretGap=(RIGHT-LEFT)/NUM_FRETS;
 
@@ -468,41 +489,128 @@ const OPEN_NOTES = [
   {label:"G string",note:"G3"},{label:"B string",note:"B3"},{label:"High e string",note:"E4"},
 ];
 
-function OpenStringPractice({ detected, onTarget }) {
+function OpenStringPractice({ detected, onTarget, onComplete }) {
   const [idx, setIdx] = useState(0);
-  const [done, setDone] = useState({});
+  const [heard, setHeard] = useState(false);
+  const [doneSet, setDoneSet] = useState({});
+  const [finished, setFinished] = useState(false);
+  const [kudos] = useState(()=>{
+    const msgs = ["Great job!", "You nailed it!", "Awesome work!", "Sounding good!", "Perfect!", "Nice playing!"];
+    return msgs[Math.floor(Math.random()*msgs.length)];
+  });
 
-  useEffect(()=>{ onTarget(idx < OPEN_NOTES.length ? OPEN_NOTES[idx].note : null); },[idx]);
+  const current = OPEN_NOTES[idx];
 
   useEffect(()=>{
-    if (!detected || idx >= OPEN_NOTES.length) return;
-    if (detected === OPEN_NOTES[idx].note){
-      setDone(d=>({...d,[idx]:true}));
-      setTimeout(()=>setIdx(i=>i+1), 700);
+    if (!finished) onTarget(current ? current.note : null);
+  },[idx, finished]);
+
+  useEffect(()=>{
+    if (!detected || heard || finished || !current) return;
+    if (detected === current.note) setHeard(true);
+  },[detected, heard, finished, current]);
+
+  const handleNext = () => {
+    setDoneSet(d=>({...d,[idx]:true}));
+    setHeard(false);
+    if (idx + 1 >= OPEN_NOTES.length) {
+      setFinished(true);
+      onTarget(null);
+      if (onComplete) onComplete();
+    } else {
+      setIdx(i=>i+1);
     }
-  },[detected, idx]);
+  };
+
+  const NUM_FRETS=5, NS=6, W=320, H=200;
+  const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
+  const strGap=(BOT-TOP)/(NS-1);
+  const fretGap=(RIGHT-LEFT)/NUM_FRETS;
+  const STRING_LABELS=["E","A","D","G","B","e"];
 
   return (
-    <div style={{background:"#0E0E12",border:"1px dashed "+C.fret,borderRadius:12,padding:28,textAlign:"center",margin:"20px 0"}}>
-      {idx < OPEN_NOTES.length ? (
+    <div style={{margin:"20px 0"}}>
+      {!finished ? (
         <>
-          <div style={{fontSize:14,color:C.muted,marginBottom:6}}>Pluck this string:</div>
-          <div style={{fontSize:44,fontWeight:800,color:C.amber,lineHeight:1,margin:"8px 0"}}>{OPEN_NOTES[idx].label}</div>
-          <div style={{fontFamily:"monospace",fontSize:13,color:C.muted}}>Target: {OPEN_NOTES[idx].note}</div>
+          <div style={{background:"#0A0A0E",borderRadius:12,padding:"16px 6px",border:"1px solid "+(heard?C.sage:C.fret),marginBottom:12,transition:"border-color 0.4s"}}>
+            <div style={{textAlign:"center",marginBottom:10}}>
+              <div style={{fontSize:13,color:C.muted,marginBottom:4}}>Pluck this string:</div>
+              <div style={{fontSize:32,fontWeight:800,color:heard?C.sage:C.amber,lineHeight:1,transition:"color 0.3s"}}>{current.label}</div>
+              {!heard && <div style={{fontSize:12,color:C.muted,marginTop:4}}>Target: {current.note}</div>}
+              {heard && <div style={{fontSize:13,color:C.sage,fontWeight:600,marginTop:4}}>Heard it!</div>}
+            </div>
+            <svg width={W} height={H} style={{display:"block",margin:"0 auto"}}>
+              <line x1={LEFT} y1={TOP-2} x2={LEFT} y2={BOT+2} stroke={C.text} strokeWidth={3}/>
+              {Array.from({length:NUM_FRETS+1},(_,f)=>(
+                <line key={f} x1={LEFT+f*fretGap} y1={TOP} x2={LEFT+f*fretGap} y2={BOT} stroke={C.fret} strokeWidth={1}/>
+              ))}
+              {Array.from({length:NS},(_,s)=>{
+                const isTarget = s === current.note && false;
+                const strIdx = NS-1-s;
+                const targetStrIdx = OPEN_NOTES.indexOf(current);
+                const isHighlighted = s === idx;
+                return (
+                  <g key={s}>
+                    {isHighlighted && (
+                      <rect x={LEFT} y={TOP+s*strGap-8} width={RIGHT-LEFT} height={16}
+                        fill={heard?"rgba(107,143,110,0.12)":"rgba(212,168,71,0.08)"} rx={4}/>
+                    )}
+                    <line x1={LEFT} y1={TOP+s*strGap} x2={RIGHT} y2={TOP+s*strGap}
+                      stroke={isHighlighted?(heard?C.sage:C.amber):C.string}
+                      strokeWidth={isHighlighted?(heard?3:2.5):(s===0?0.8:s===5?2:1.2)}
+                      style={{filter:isHighlighted?("drop-shadow(0 0 4px "+(heard?C.sage:C.amber)+")"):"none"}}/>
+                    <text x={LEFT-10} y={TOP+s*strGap+4} textAnchor="middle"
+                      fontSize={10} fill={isHighlighted?(heard?C.sage:C.amber):C.amber}
+                      fontFamily="monospace" fontWeight={isHighlighted?"800":"400"}>
+                      {STRING_LABELS[s]}
+                    </text>
+                    {doneSet[s] && (
+                      <text x={RIGHT+10} y={TOP+s*strGap+4} textAnchor="middle"
+                        fontSize={12} fill={C.sage}>✓</text>
+                    )}
+                  </g>
+                );
+              })}
+              {Array.from({length:NUM_FRETS},(_,f)=>(
+                <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
+                  fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
+              ))}
+            </svg>
+          </div>
+
+          {heard && (
+            <button onClick={handleNext}
+              style={{width:"100%",padding:"13px",borderRadius:10,border:"2px solid "+C.sage,
+                background:C.sage,color:"#fff",fontFamily:"sans-serif",fontSize:15,
+                fontWeight:700,cursor:"pointer",marginBottom:8}}>
+              {idx + 1 >= OPEN_NOTES.length ? "All done! See how I did" : "Next string →"}
+            </button>
+          )}
+
+          <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginTop:8}}>
+            {OPEN_NOTES.map((s,i)=>(
+              <div key={i} style={{padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontSize:12,
+                border:"1px solid "+(doneSet[i]?C.sage:i===idx?C.amber:C.fret),
+                color:doneSet[i]?C.sage:i===idx?C.amber:C.muted,
+                background:doneSet[i]?"rgba(107,143,110,0.1)":i===idx?"rgba(212,168,71,0.1)":"transparent"}}>
+                {doneSet[i]?"✓":s.note}
+              </div>
+            ))}
+          </div>
         </>
       ) : (
-        <div style={{fontSize:18,fontWeight:600,color:C.sage}}>All 6 open strings done!</div>
-      )}
-      <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginTop:16}}>
-        {OPEN_NOTES.map((s,i)=>(
-          <div key={i} style={{padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontSize:12,
-            border:"1px solid "+(done[i]?C.sage:i===idx?C.amber:C.fret),
-            color:done[i]?C.sage:i===idx?C.amber:C.muted,
-            background:done[i]?"rgba(107,143,110,0.1)":i===idx?"rgba(212,168,71,0.1)":"transparent"}}>
-            {s.note}
+        <div style={{background:"#0A0A0E",borderRadius:12,padding:28,border:"1px solid "+C.sage,textAlign:"center"}}>
+          <div style={{fontSize:40,marginBottom:12}}>🎸</div>
+          <div style={{fontSize:22,fontWeight:800,color:C.sage,marginBottom:8}}>{kudos}</div>
+          <div style={{fontSize:14,color:C.muted}}>You just played all 6 open strings. Click Next to continue.</div>
+          <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginTop:16}}>
+            {OPEN_NOTES.map((s,i)=>(
+              <div key={i} style={{padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontSize:12,
+                border:"1px solid "+C.sage,color:C.sage,background:"rgba(107,143,110,0.1)"}}>✓</div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -742,11 +850,17 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
       <Tip>Read left to right. 0 = open string. 2 = press 2nd fret. Numbers stacked vertically = chord.</Tip>
     </div>
   );
+  const [stringsComplete, setStringsComplete] = useState(false);
   if (id === 2) return (
     <div>
-      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:4}}>Start with open strings. Enable the mic and the app confirms each note as you pluck.</p>
-      <OpenStringPractice detected={detected} onTarget={onTarget}/>
-      <Tip>Press just behind the fret wire, not on top of it.</Tip>
+      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:4}}>Pluck each open string one at a time. The app listens and lights it up green when it hears you - then tap Next to move on.</p>
+      <OpenStringPractice detected={detected} onTarget={onTarget} onComplete={()=>setStringsComplete(true)}/>
+      {!stringsComplete && <Tip>Open strings means no fingers on the frets - just pluck the string.</Tip>}
+      {stringsComplete && (
+        <div style={{display:"flex",gap:10,marginTop:16}}>
+          <Btn onClick={()=>setStringsComplete(false)} variant="secondary">Start over</Btn>
+        </div>
+      )}
     </div>
   );
   if (id === 3) return (
@@ -829,8 +943,328 @@ function MicBar({ note, hz, feedback, listening, onToggle }) {
   );
 }
 
+
+const OPEN_STRINGS = [
+  {note:"E2", name:"Low E",  freq:82.41,  string:6},
+  {note:"A2", name:"A",      freq:110.00, string:5},
+  {note:"D3", name:"D",      freq:146.83, string:4},
+  {note:"G3", name:"G",      freq:196.00, string:3},
+  {note:"B3", name:"B",      freq:246.94, string:2},
+  {note:"E4", name:"High e", freq:329.63, string:1},
+];
+
+function HamburgerMenu({ onTuner, onBasics, onSongSearch, onClose }) {
+  return (
+    <>
+      <div onClick={onClose}
+        style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200}}/>
+      <div style={{position:"fixed",top:0,right:0,bottom:0,width:260,background:C.bg2,
+        borderLeft:"1px solid "+C.fret,zIndex:201,display:"flex",flexDirection:"column",
+        boxShadow:"-8px 0 32px rgba(0,0,0,0.4)"}}>
+        <div style={{padding:"18px 20px",borderBottom:"1px solid "+C.fret,
+          display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontWeight:800,fontSize:18}}>
+            <span style={{color:C.amber}}>Guitar</span><span style={{color:C.text}}>Teacher</span>
+          </div>
+          <button onClick={onClose}
+            style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",
+              lineHeight:1,padding:4}}>
+            x
+          </button>
+        </div>
+        <div style={{padding:"12px 0",flex:1}}>
+          {[
+            {icon:"🎵", label:"Guitar Tuner",  sub:"Tune before you play",   action:onTuner},
+            {icon:"📖", label:"Guitar Basics", sub:"8 lessons for beginners", action:onBasics},
+            {icon:"🔍", label:"Song Search",   sub:"70+ songs with tab",      action:onSongSearch},
+          ].map(({icon,label,sub,action})=>(
+            <button key={label} onClick={action}
+              style={{width:"100%",padding:"16px 20px",background:"none",border:"none",
+                cursor:"pointer",textAlign:"left",fontFamily:"sans-serif",
+                display:"flex",alignItems:"center",gap:14,
+                borderBottom:"1px solid "+C.fret}}>
+              <span style={{fontSize:22,flexShrink:0}}>{icon}</span>
+              <div>
+                <div style={{fontWeight:600,fontSize:14,color:C.text}}>{label}</div>
+                <div style={{fontSize:11,color:C.muted,marginTop:2}}>{sub}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <div style={{padding:"16px 20px",borderTop:"1px solid "+C.fret,fontSize:11,color:C.muted,textAlign:"center"}}>
+          GuitarTeacher - Learn at your own pace
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+function GuitarTuner({ onBack, onGoTuner, onGoBasics, onGoSongSearch }) {
+  const [listening, setListening] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [detectedNote, setDetectedNote] = useState("");
+  const [detectedFreq, setDetectedFreq] = useState(0);
+  const [cents, setCents] = useState(0);
+  const [closestString, setClosestString] = useState(null);
+  const [lockedString, setLockedString] = useState(null);
+  const [tuned, setTuned] = useState({});
+  const [currentStringIdx, setCurrentStringIdx] = useState(0);
+  const ctxRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(null);
+
+  const stopMic = useCallback(()=>{
+    if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());
+    if(rafRef.current) cancelAnimationFrame(rafRef.current);
+    if(ctxRef.current) ctxRef.current.close();
+    ctxRef.current=null; streamRef.current=null;
+    setListening(false); setDetectedNote(""); setDetectedFreq(0); setCents(0); setClosestString(null);
+  },[]);
+
+  const startMic = useCallback(async()=>{
+    if(listening){ stopMic(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 4096;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      ctxRef.current=ctx; streamRef.current=stream;
+      setListening(true);
+      const buf = new Float32Array(analyser.fftSize);
+      const loop = ()=>{
+        rafRef.current = requestAnimationFrame(loop);
+        analyser.getFloatTimeDomainData(buf);
+        const freq = autoCorrelate(buf, ctx.sampleRate);
+        if(freq > 60 && freq < 1200){
+          const midi = Math.round(12*Math.log2(freq/440)+69);
+          const name = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"][midi%12];
+          const oct = Math.floor(midi/12)-1;
+          const exactHz = 440*Math.pow(2,(midi-69)/12);
+          const c = Math.round(1200*Math.log2(freq/exactHz));
+          setDetectedNote(name+oct);
+          setDetectedFreq(Math.round(freq*10)/10);
+          setCents(c);
+          const closest = lockedString || OPEN_STRINGS.reduce((best,s)=>{
+            const diff = Math.abs(freq - s.freq);
+            return diff < Math.abs(freq - best.freq) ? s : best;
+          }, OPEN_STRINGS[0]);
+          setClosestString(closest);
+        }
+      };
+      loop();
+    } catch(e){ alert("Mic access denied. Please allow microphone access and try again."); }
+  },[listening, stopMic]);
+
+  useEffect(()=>()=>stopMic(),[]);
+
+  const inTune = Math.abs(cents) <= 8;
+  const slightlyOff = Math.abs(cents) <= 20;
+  const needleAngle = Math.max(-45, Math.min(45, cents * 0.9));
+  const needleColor = inTune ? C.sage : slightlyOff ? C.amber : C.coral;
+  const tuneMsg = inTune ? "In tune!" : cents < 0 ? "Tune up" : "Tune down";
+  const tuneMsgColor = inTune ? C.sage : slightlyOff ? C.amber : C.coral;
+  const allTuned = Object.keys(tuned).length === OPEN_STRINGS.length;
+  const activeString = lockedString || OPEN_STRINGS[currentStringIdx];
+
+  return (
+    <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"sans-serif",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"18px 32px",borderBottom:"1px solid "+C.fret,display:"flex",alignItems:"center",gap:16}}>
+        <button onClick={onBack}
+          style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",padding:0,lineHeight:1}}>
+          ←
+        </button>
+        <div style={{fontWeight:800,fontSize:22}}>
+          <span style={{color:C.amber}}>Guitar</span><span>Teacher</span>
+          <span style={{fontWeight:600,fontSize:14,color:C.muted,marginLeft:8}}>/ Tuner</span>
+        </div>
+        <button onClick={()=>setMenuOpen(true)}
+          style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",flexDirection:"column",gap:5}}>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+        </button>
+      </div>
+      {menuOpen && <HamburgerMenu
+        onTuner={()=>{setMenuOpen(false);}}
+        onBasics={()=>{setMenuOpen(false);onGoBasics();}}
+        onSongSearch={()=>{setMenuOpen(false);onGoSongSearch();}}
+        onClose={()=>setMenuOpen(false)}
+      />}
+
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px 20px 60px"}}>
+        <div style={{maxWidth:480,width:"100%"}}>
+          <div style={{textAlign:"center",marginBottom:28}}>
+            <div style={{fontSize:13,color:C.muted,marginBottom:6}}>Pluck any string and tune to the closest note</div>
+          </div>
+
+          {/* Needle meter */}
+          <div style={{background:"#0A0A0E",borderRadius:16,padding:"28px 20px 20px",border:"1px solid "+C.fret,marginBottom:20,textAlign:"center"}}>
+            <svg width={300} height={160} style={{display:"block",margin:"0 auto",overflow:"visible"}}>
+              {/* Arc background */}
+              <path d="M 30 140 A 120 120 0 0 1 270 140" fill="none" stroke={C.fret} strokeWidth={8} strokeLinecap="round"/>
+              {/* Colored arc zones */}
+              <path d="M 30 140 A 120 120 0 0 1 75 50" fill="none" stroke="rgba(224,92,75,0.3)" strokeWidth={8} strokeLinecap="round"/>
+              <path d="M 75 50 A 120 120 0 0 1 118 22" fill="none" stroke="rgba(212,168,71,0.3)" strokeWidth={8} strokeLinecap="round"/>
+              <path d="M 118 22 A 120 120 0 0 1 182 22" fill="none" stroke="rgba(107,143,110,0.5)" strokeWidth={10} strokeLinecap="round"/>
+              <path d="M 182 22 A 120 120 0 0 1 225 50" fill="none" stroke="rgba(212,168,71,0.3)" strokeWidth={8} strokeLinecap="round"/>
+              <path d="M 225 50 A 120 120 0 0 1 270 140" fill="none" stroke="rgba(224,92,75,0.3)" strokeWidth={8} strokeLinecap="round"/>
+              {/* Center tick */}
+              <line x1={150} y1={25} x2={150} y2={40} stroke={C.sage} strokeWidth={2}/>
+              {/* Needle */}
+              {detectedFreq > 0 && (
+                <g transform={"rotate("+needleAngle+", 150, 140)"}>
+                  <line x1={150} y1={140} x2={150} y2={35} stroke={needleColor} strokeWidth={2.5} strokeLinecap="round"/>
+                  <circle cx={150} cy={140} r={6} fill={needleColor}/>
+                </g>
+              )}
+              {/* Center dot when no signal */}
+              {detectedFreq === 0 && (
+                <circle cx={150} cy={140} r={5} fill={C.fret}/>
+              )}
+              {/* Labels */}
+              <text x={18} y={155} fontSize={10} fill={C.muted} textAnchor="middle">-50</text>
+              <text x={150} y={18} fontSize={10} fill={C.sage} textAnchor="middle">0</text>
+              <text x={282} y={155} fontSize={10} fill={C.muted} textAnchor="middle">+50</text>
+            </svg>
+
+            {detectedFreq > 0 ? (
+              <>
+                <div style={{fontSize:48,fontWeight:800,color:needleColor,lineHeight:1,margin:"8px 0 4px"}}>{detectedNote}</div>
+                <div style={{fontSize:13,color:C.muted,marginBottom:6}}>{detectedFreq} Hz</div>
+                <div style={{fontSize:18,fontWeight:700,color:tuneMsgColor}}>{tuneMsg}</div>
+                {!inTune && (
+                  <div style={{fontSize:12,color:C.muted,marginTop:4}}>
+                    {Math.abs(cents)} cents {cents < 0 ? "flat" : "sharp"}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{fontSize:15,color:C.muted,marginTop:8}}>
+                {listening ? "Pluck a string..." : "Tap the mic to start"}
+              </div>
+            )}
+          </div>
+
+          {/* String selector tabs */}
+          <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+            {OPEN_STRINGS.map((s,i)=>{
+              const isActive = activeString && activeString.note===s.note;
+              const isDone = tuned[s.note];
+              return (
+                <button key={s.note} onClick={()=>{setLockedString(s);setCurrentStringIdx(i);}}
+                  style={{flex:1,padding:"8px 4px",borderRadius:8,border:"1px solid "+(isDone?C.sage:isActive?C.amber:C.fret),
+                    background:isDone?"rgba(107,143,110,0.15)":isActive?"rgba(212,168,71,0.1)":"transparent",
+                    cursor:"pointer",fontFamily:"sans-serif",textAlign:"center",minWidth:44}}>
+                  <div style={{fontSize:15,fontWeight:800,color:isDone?C.sage:isActive?C.amber:C.text}}>
+                    {s.name==="Low E"?"E":s.name==="High e"?"e":s.name}
+                  </div>
+                  <div style={{fontSize:9,color:isDone?C.sage:C.muted,marginTop:1}}>{isDone?"✓":s.note}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Guitar string visual */}
+          <div style={{background:"#0A0A0E",borderRadius:12,padding:"18px 16px",border:"1px solid "+(inTune&&detectedFreq>0?C.sage:C.fret),marginBottom:12,transition:"border-color 0.3s"}}>
+            <div style={{fontSize:12,fontWeight:600,textTransform:"uppercase",letterSpacing:"1px",
+              color:C.muted,marginBottom:14,textAlign:"center"}}>
+              {detectedFreq>0 ? (
+                <span>Plucking <span style={{color:inTune?C.sage:C.amber,fontWeight:800}}>
+                  {activeString.name} string
+                </span> {inTune ? "- In tune!" : (cents<0?"- Tune up (too flat)":"- Tune down (too sharp)")}</span>
+              ) : <span>Tap a string above, then pluck it on your guitar</span>}
+            </div>
+            <svg width="100%" viewBox="0 0 340 130" style={{display:"block"}}>
+              {OPEN_STRINGS.map((s,i)=>{
+                const isActive = activeString && activeString.note===s.note;
+                const x1 = 20, x2 = 320;
+                const y = 18 + i*19;
+                const thickness = i===0?2.5:i===1?2.2:i===2?1.8:i===3?1.4:i===4?1.1:0.9;
+                const stringCol = isActive?(inTune?C.sage:C.amber):"#5A5A6A";
+                const glowOpacity = isActive ? 1 : 0;
+                return (
+                  <g key={s.note}>
+                    {isActive && (
+                      <line x1={x1} y1={y} x2={x2} y2={y}
+                        stroke={inTune?C.sage:C.amber} strokeWidth={thickness+6} opacity={0.15}/>
+                    )}
+                    <line x1={x1} y1={y} x2={x2} y2={y}
+                      stroke={stringCol} strokeWidth={thickness}
+                      strokeLinecap="round"
+                      style={{filter:isActive?("drop-shadow(0 0 4px "+(inTune?C.sage:C.amber)+")"):"none"}}/>
+                    <text x={8} y={y+4} textAnchor="middle" fontSize={9}
+                      fill={isActive?(inTune?C.sage:C.amber):C.muted}
+                      fontFamily="monospace" fontWeight={isActive?"800":"400"}>
+                      {s.name==="Low E"?"E":s.name==="High e"?"e":s.name}
+                    </text>
+                    <text x={332} y={y+4} textAnchor="middle" fontSize={9}
+                      fill={isActive?(inTune?C.sage:C.amber):C.muted}
+                      fontFamily="monospace" fontWeight={isActive?"800":"400"}>
+                      {s.note}
+                    </text>
+                    {isActive && (
+                      <>
+                        <circle cx={160} cy={y} r={8} fill={inTune?C.sage:C.amber} opacity={0.9}/>
+                        <text x={160} y={y+4} textAnchor="middle" fontSize={9}
+                          fill="#1A1A1F" fontWeight="900" fontFamily="monospace">
+                          {inTune?"✓":cents<0?"↑":"↓"}
+                        </text>
+                      </>
+                    )}
+                  </g>
+                );
+              })}
+              <line x1={20} y1={10} x2={20} y2={120} stroke={C.muted} strokeWidth={3} strokeLinecap="round"/>
+              <line x1={320} y1={10} x2={320} y2={120} stroke={C.fret} strokeWidth={1}/>
+            </svg>
+          </div>
+
+          {/* Mark tuned + Next */}
+          <div style={{display:"flex",gap:10,marginBottom:12}}>
+            {detectedFreq>0 && inTune && (
+              <button onClick={()=>{
+                setTuned(t=>({...t,[activeString.note]:true}));
+                const nextIdx = currentStringIdx+1 < OPEN_STRINGS.length ? currentStringIdx+1 : currentStringIdx;
+                setCurrentStringIdx(nextIdx);
+                setLockedString(nextIdx!==currentStringIdx ? OPEN_STRINGS[nextIdx] : lockedString);
+              }}
+                style={{flex:1,padding:"11px",borderRadius:10,border:"2px solid "+C.sage,
+                  background:"rgba(107,143,110,0.1)",color:C.sage,fontFamily:"sans-serif",
+                  fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                Mark as tuned - Next string
+              </button>
+            )}
+            {allTuned && (
+              <button onClick={onBack}
+                style={{flex:1,padding:"11px",borderRadius:10,border:"2px solid "+C.sage,
+                  background:C.sage,color:"#fff",fontFamily:"sans-serif",
+                  fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                All tuned! Back to menu
+              </button>
+            )}
+          </div>
+
+          {/* Mic button */}
+          <button onClick={startMic}
+            style={{width:"100%",padding:"14px",borderRadius:12,border:"2px solid "+(listening?C.coral:C.amber),
+              background:listening?"rgba(224,92,75,0.1)":"rgba(212,168,71,0.08)",
+              color:listening?C.coral:C.amber,fontFamily:"sans-serif",fontSize:15,fontWeight:700,
+              cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+            <span style={{fontSize:20}}>🎙️</span>
+            {listening ? "Stop Listening" : "Start Listening"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [splash, setSplash] = useState(true);
+  const [showTuner, setShowTuner] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [lesson, setLesson] = useState(0);
   const [listening, setListening] = useState(false);
   const [pitchNote, setPitchNote] = useState("");
@@ -897,12 +1331,32 @@ export default function App() {
 
   const css = "*{box-sizing:border-box;margin:0;padding:0} body{background:#1A1A1F} input::placeholder{color:#9A9490} p+p{margin-top:10px}";
 
+  if (showTuner) return <GuitarTuner
+    onBack={()=>setShowTuner(false)}
+    onGoTuner={()=>{}}
+    onGoBasics={()=>{setShowTuner(false);setSplash(false);setLesson(0);}}
+    onGoSongSearch={()=>{setShowTuner(false);setSplash(false);setLesson(7);}}
+  />;
+
   if (splash) return (
     <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"sans-serif",display:"flex",flexDirection:"column"}}>
       <style>{css}</style>
-      <div style={{padding:"18px 32px",borderBottom:"1px solid "+C.fret,fontWeight:800,fontSize:22}}>
-        <span style={{color:C.amber}}>Guitar</span><span>Teacher</span>
+      <div style={{padding:"18px 32px",borderBottom:"1px solid "+C.fret,fontWeight:800,fontSize:22,
+        display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div><span style={{color:C.amber}}>Guitar</span><span>Teacher</span></div>
+        <button onClick={()=>setMenuOpen(true)}
+          style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",flexDirection:"column",gap:5}}>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+        </button>
       </div>
+      {menuOpen && <HamburgerMenu
+        onTuner={()=>{setMenuOpen(false);setShowTuner(true);setSplash(false);}}
+        onBasics={()=>{setMenuOpen(false);setShowTuner(false);setSplash(false);go(0);}}
+        onSongSearch={()=>{setMenuOpen(false);setShowTuner(false);setSplash(false);go(7);}}
+        onClose={()=>setMenuOpen(false)}
+      />}
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px 80px"}}>
         <div style={{maxWidth:520,width:"100%",textAlign:"center"}}>
           <div style={{fontSize:50,marginBottom:14}}>🎸</div>
@@ -912,7 +1366,15 @@ export default function App() {
           <p style={{fontSize:15,color:"#C8C5BE",lineHeight:1.7,maxWidth:400,margin:"0 auto 32px"}}>
             Start from the very beginning or jump straight to playing songs you love.
           </p>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:12}}>
+            <button onClick={()=>setShowTuner(true)}
+              style={{background:C.bg2,border:"1px solid "+C.sage,borderRadius:14,padding:"22px 16px",
+                cursor:"pointer",textAlign:"left",fontFamily:"sans-serif",gridColumn:"1/-1"}}>
+              <div style={{fontSize:26,marginBottom:8}}>🎵</div>
+              <div style={{fontWeight:700,fontSize:15,color:C.text,marginBottom:5}}>Tune your guitar</div>
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Pluck a string and the tuner tells you if you are in tune. Always tune up before playing.</div>
+              <div style={{marginTop:12,fontSize:12,fontWeight:600,color:C.sage}}>Chromatic tuner - standard tuning</div>
+            </button>
             <button onClick={()=>go(0)}
               style={{background:C.bg2,border:"1px solid "+C.amber,borderRadius:14,padding:"22px 16px",
                 cursor:"pointer",textAlign:"left",fontFamily:"sans-serif"}}>
@@ -926,7 +1388,7 @@ export default function App() {
                 cursor:"pointer",textAlign:"left",fontFamily:"sans-serif"}}>
               <div style={{fontSize:26,marginBottom:8}}>🔍</div>
               <div style={{fontWeight:700,fontSize:15,color:C.text,marginBottom:5}}>Search any song</div>
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Know the basics? Search 32 songs and play with mic feedback.</div>
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Know the basics? Search 70+ songs and play with mic feedback.</div>
               <div style={{marginTop:12,fontSize:12,fontWeight:600,color:C.muted}}>Jump to lesson 8</div>
             </button>
           </div>
@@ -944,14 +1406,28 @@ export default function App() {
           style={{fontWeight:800,fontSize:21,background:"none",border:"none",cursor:"pointer",color:C.text,padding:0,fontFamily:"sans-serif"}}>
           <span style={{color:C.amber}}>Guitar</span><span>Teacher</span>
         </button>
-        <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:C.muted}}>
-          <span>{lesson+1}/{LESSONS.length}</span>
-          <div style={{width:100,height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}>
-            <div style={{height:"100%",background:C.amber,width:prog+"%",borderRadius:2,transition:"width 0.4s"}}/>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:C.muted}}>
+            <span>{lesson+1}/{LESSONS.length}</span>
+            <div style={{width:80,height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}>
+              <div style={{height:"100%",background:C.amber,width:prog+"%",borderRadius:2,transition:"width 0.4s"}}/>
+            </div>
           </div>
+          <button onClick={()=>setMenuOpen(true)}
+            style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",flexDirection:"column",gap:5}}>
+            <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+            <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+            <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          </button>
         </div>
       </div>
 
+      {menuOpen && <HamburgerMenu
+        onTuner={()=>{setMenuOpen(false);setShowTuner(true);setSplash(false);}}
+        onBasics={()=>{setMenuOpen(false);setShowTuner(false);setSplash(false);setLesson(0);}}
+        onSongSearch={()=>{setMenuOpen(false);setShowTuner(false);setSplash(false);setLesson(7);}}
+        onClose={()=>setMenuOpen(false)}
+      />}
       <div style={{maxWidth:820,margin:"0 auto",padding:"28px 20px 150px"}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:24}}>
           {LESSONS.map((l,i)=>(

@@ -844,33 +844,81 @@ function LessonBody({ id, detected, onTarget, listening, onStartMic }) {
       <p style={{fontSize:14,color:C.muted}}>Strings thick to thin: <strong style={{color:C.text}}>E A D G B e</strong> - remember with "Elephants And Donkeys Grow Big Ears."</p>
     </div>
   );
-  if (id === 1) return (
-    <div>
-      <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>Tab shows you exactly where to put your fingers. No music theory needed. Each line is a string, numbers are frets.</p>
-      <div style={{background:"#111115",borderRadius:10,padding:"18px 22px",border:"1px solid "+C.fret,overflowX:"auto"}}>
-        {[
-          {s:"e",v:["--","0","--","--","--","3","--"]},
-          {s:"B",v:["--","--","0","--","--","3","--"]},
-          {s:"G",v:["--","--","--","0","--","0","--"]},
-          {s:"D",v:["--","--","--","--","--","0","--"]},
-          {s:"A",v:["--","--","--","--","--","2","--"]},
-          {s:"E",v:["0","--","--","--","--","3","--"]},
-        ].map(({s,v})=>(
-          <div key={s} style={{display:"flex",alignItems:"center",height:26}}>
-            <span style={{fontFamily:"monospace",fontSize:13,fontWeight:600,color:C.amber,width:22}}>{s}</span>
-            <span style={{fontFamily:"monospace",fontSize:13,color:C.string,marginRight:4}}>|</span>
-            {v.map((val,i)=>(
-              <span key={i} style={{fontFamily:"monospace",fontSize:14,width:22,textAlign:"center",
-                color:val==="--"?C.string:i>=5?C.amber:C.text,fontWeight:val!=="--"?600:400}}>
-                {val}
-              </span>
+  if (id === 1) {
+    const NUM_FRETS=5, NS=6, W=320, H=200;
+    const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
+    const strGap=(BOT-TOP)/(NS-1);
+    const fretGap=(RIGHT-LEFT)/NUM_FRETS;
+    const LABELS=["E","A","D","G","B","e"];
+    // Two example notes: open E (str0 fret0), G chord shape highlight (str5 fret3)
+    // Single notes to demo: 1=open E2(str0,fr0), 2=open e(str5,fr0), 3=G chord(str0,fr3 + str5,fr3)
+    const demoNotes=[
+      {str:0,fret:0,label:"1",note:"E2",desc:"Open Low E"},
+      {str:5,fret:0,label:"2",note:"e4",desc:"Open High e"},
+      {str:0,fret:3,label:"3",note:"G",desc:"Fret 3"},
+      {str:5,fret:3,label:"4",note:"G",desc:"Fret 3"},
+      {str:1,fret:2,label:"5",note:"B",desc:"Fret 2"},
+    ];
+    return (
+      <div>
+        <p style={{color:"#C8C5BE",fontSize:15,lineHeight:1.75,marginBottom:14}}>
+          Each line is a string on your guitar. Numbers tell you which fret to press. 0 means open - no fingers needed.
+        </p>
+        <div style={{background:"#0A0A0E",borderRadius:10,padding:"10px 6px",border:"1px solid "+C.fret,marginBottom:16}}>
+          <div style={{textAlign:"center",fontSize:12,color:C.muted,marginBottom:8}}>Example - a G chord</div>
+          <svg width={W} height={H} style={{display:"block",margin:"0 auto"}}>
+            <line x1={LEFT} y1={TOP-2} x2={LEFT} y2={BOT+2} stroke={C.text} strokeWidth={3}/>
+            {Array.from({length:NUM_FRETS+1},(_,f)=>(
+              <line key={f} x1={LEFT+f*fretGap} y1={TOP} x2={LEFT+f*fretGap} y2={BOT} stroke={C.fret} strokeWidth={1}/>
             ))}
-          </div>
-        ))}
+            {Array.from({length:NS},(_,s)=>(
+              <line key={s} x1={LEFT} y1={TOP+s*strGap} x2={RIGHT} y2={TOP+s*strGap}
+                stroke={C.string} strokeWidth={s===0?2:s===5?0.8:1.2}/>
+            ))}
+            {LABELS.map((n,s)=>(
+              <text key={s} x={LEFT-10} y={TOP+s*strGap+4} textAnchor="middle"
+                fontSize={10} fill={C.amber} fontFamily="monospace" fontWeight="600">{n}</text>
+            ))}
+            {Array.from({length:NUM_FRETS},(_,f)=>(
+              <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
+                fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
+            ))}
+            {/* Open string circles left of nut */}
+            <circle cx={LEFT-13} cy={TOP+0*strGap} r={7} fill="none" stroke={C.sage} strokeWidth={2}/>
+            <text x={LEFT-13} y={TOP+0*strGap+4} textAnchor="middle" fontSize={9} fill={C.sage} fontFamily="monospace" fontWeight="700">0</text>
+            <circle cx={LEFT-13} cy={TOP+5*strGap} r={7} fill="none" stroke={C.sage} strokeWidth={2}/>
+            <text x={LEFT-13} y={TOP+5*strGap+4} textAnchor="middle" fontSize={9} fill={C.sage} fontFamily="monospace" fontWeight="700">0</text>
+            {/* Fretted dots */}
+            {[{s:0,f:3,n:"G"},{s:1,f:2,n:"A"},{s:4,f:2,n:"B"},{s:5,f:3,n:"G"}].map(({s,f,n},i)=>{
+              const cx=LEFT+(f-0.5)*fretGap, cy=TOP+s*strGap;
+              return (
+                <g key={i}>
+                  <circle cx={cx} cy={cy} r={14} fill="rgba(212,168,71,0.12)"/>
+                  <circle cx={cx} cy={cy} r={11} fill={C.amber}/>
+                  <text x={cx} y={cy+5} textAnchor="middle" fontSize={12}
+                    fill="#1A1A1F" fontWeight="900" fontFamily="monospace">{n}</text>
+                </g>
+              );
+            })}
+            {/* Muted strings */}
+            {[2,3].map(s=>{
+              const cy=TOP+s*strGap;
+              return (
+                <g key={s}>
+                  <line x1={LEFT-18} y1={cy-6} x2={LEFT-8} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
+                  <line x1={LEFT-8}  y1={cy-6} x2={LEFT-18} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <Tip>0 = open string (no fingers). A number = press that fret. X = don't play that string. Green O = open, play it.</Tip>
+        <p style={{color:"#C8C5BE",fontSize:14,lineHeight:1.7,marginTop:12}}>
+          The top string (E) is the thickest - the one closest to you when you hold the guitar. The bottom (e) is the thinnest.
+        </p>
       </div>
-      <Tip>Read left to right. 0 = open string. 2 = press 2nd fret. Numbers stacked vertically = chord.</Tip>
-    </div>
-  );
+    );
+  }
   const [stringsComplete, setStringsComplete] = useState(false);
   if (id === 2) return (
     <div>
