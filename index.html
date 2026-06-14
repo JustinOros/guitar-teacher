@@ -151,52 +151,60 @@ function ChordDiagram({ name }) {
   const sh = CHORDS[name];
   if (!sh) return null;
 
-  const NUM_FRETS=5, NS=6, W=320, H=200;
-  const TOP=44, BOT=H-24, LEFT=44, RIGHT=W-12;
+  // Three columns left of nut:
+  // col1=12 (string letter), col2=34 (open/muted symbol), nut at LEFT=60
+  const NUM_FRETS=5, NS=6, W=320, H=210;
+  const TOP=44, BOT=H-22, LEFT=60, RIGHT=W-10;
   const strGap=(BOT-TOP)/(NS-1);
   const fretGap=(RIGHT-LEFT)/NUM_FRETS;
   const STRING_LABELS=["E","A","D","G","B","e"];
-
-  // Build note list from chord shape: open strings + fretted dots
-  const notes = [];
-  sh.open.forEach(s=>{ notes.push({str:s, fret:0, label:"o", muted:false}); });
-  sh.muted.forEach(s=>{ notes.push({str:s, fret:-1, label:"x", muted:true}); });
-  sh.dots.forEach(({s,f,n})=>{ notes.push({str:s, fret:f, label:n, muted:false, finger:true}); });
+  const COL_LABEL=12, COL_MARKER=36;
 
   return (
     <div style={{background:"#0A0A0E",borderRadius:10,padding:"10px 6px",
       border:"1px solid "+C.fret,marginBottom:8}}>
       <div style={{textAlign:"center",marginBottom:6,fontWeight:700,fontSize:15,color:C.amber}}>{name}</div>
       <svg width={W} height={H} style={{display:"block",margin:"0 auto"}}>
+        {/* Nut */}
         <line x1={LEFT} y1={TOP-2} x2={LEFT} y2={BOT+2} stroke={C.text} strokeWidth={3}/>
+        {/* Frets */}
         {Array.from({length:NUM_FRETS+1},(_,f)=>(
           <line key={f} x1={LEFT+f*fretGap} y1={TOP} x2={LEFT+f*fretGap} y2={BOT} stroke={C.fret} strokeWidth={1}/>
         ))}
+        {/* Strings */}
         {Array.from({length:NS},(_,s)=>(
           <line key={s} x1={LEFT} y1={TOP+s*strGap} x2={RIGHT} y2={TOP+s*strGap}
-            stroke={C.string} strokeWidth={s===0?0.8:s===5?2:1.2}/>
+            stroke={C.string} strokeWidth={s===0?2:s===5?0.8:1.2}/>
         ))}
+        {/* Col 1: string name labels */}
         {STRING_LABELS.map((n,s)=>(
-          <text key={s} x={LEFT-10} y={TOP+s*strGap+4} textAnchor="middle"
-            fontSize={10} fill={C.amber} fontFamily="monospace" fontWeight="600">{n}</text>
+          <text key={s} x={COL_LABEL} y={TOP+s*strGap+4} textAnchor="middle"
+            fontSize={11} fill={C.amber} fontFamily="monospace" fontWeight="700">{n}</text>
         ))}
+        {/* Col 2: open or muted markers */}
+        {Array.from({length:NS},(_,s)=>{
+          const cy=TOP+s*strGap;
+          const isOpen = sh.open.includes(s);
+          const isMuted = sh.muted.includes(s);
+          if(isOpen) return (
+            <g key={s}>
+              <circle cx={COL_MARKER} cy={cy} r={7} fill="none" stroke={C.sage} strokeWidth={2}/>
+            </g>
+          );
+          if(isMuted) return (
+            <g key={s}>
+              <line x1={COL_MARKER-6} y1={cy-6} x2={COL_MARKER+6} y2={cy+6} stroke={C.coral} strokeWidth={2.5}/>
+              <line x1={COL_MARKER+6} y1={cy-6} x2={COL_MARKER-6} y2={cy+6} stroke={C.coral} strokeWidth={2.5}/>
+            </g>
+          );
+          return null;
+        })}
+        {/* Fret numbers */}
         {Array.from({length:NUM_FRETS},(_,f)=>(
           <text key={f} x={LEFT+(f+0.5)*fretGap} y={BOT+16} textAnchor="middle"
             fontSize={9} fill={C.muted} fontFamily="monospace">{f+1}</text>
         ))}
-        {sh.muted.map(s=>{
-          const cy=TOP+s*strGap;
-          return (
-            <g key={"m"+s}>
-              <line x1={LEFT-18} y1={cy-6} x2={LEFT-8} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
-              <line x1={LEFT-8}  y1={cy-6} x2={LEFT-18} y2={cy+6} stroke={C.coral} strokeWidth={2}/>
-            </g>
-          );
-        })}
-        {sh.open.map(s=>(
-          <circle key={"o"+s} cx={LEFT-13} cy={TOP+s*strGap} r={5}
-            fill="none" stroke={C.sage} strokeWidth={2}/>
-        ))}
+        {/* Fretted finger dots */}
         {sh.dots.map(({s,f,n},i)=>{
           const cx = LEFT+(f-0.5)*fretGap;
           const cy = TOP+s*strGap;
