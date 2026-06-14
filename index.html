@@ -846,8 +846,249 @@ function MicBar({ note, hz, feedback, listening, onToggle }) {
   );
 }
 
+
+const OPEN_STRINGS = [
+  {note:"E2", name:"Low E",  freq:82.41,  string:6},
+  {note:"A2", name:"A",      freq:110.00, string:5},
+  {note:"D3", name:"D",      freq:146.83, string:4},
+  {note:"G3", name:"G",      freq:196.00, string:3},
+  {note:"B3", name:"B",      freq:246.94, string:2},
+  {note:"E4", name:"High e", freq:329.63, string:1},
+];
+
+function HamburgerMenu({ onTuner, onBasics, onSongSearch, onClose }) {
+  return (
+    <>
+      <div onClick={onClose}
+        style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200}}/>
+      <div style={{position:"fixed",top:0,right:0,bottom:0,width:260,background:C.bg2,
+        borderLeft:"1px solid "+C.fret,zIndex:201,display:"flex",flexDirection:"column",
+        boxShadow:"-8px 0 32px rgba(0,0,0,0.4)"}}>
+        <div style={{padding:"18px 20px",borderBottom:"1px solid "+C.fret,
+          display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontWeight:800,fontSize:18}}>
+            <span style={{color:C.amber}}>Guitar</span><span style={{color:C.text}}>Teacher</span>
+          </div>
+          <button onClick={onClose}
+            style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",
+              lineHeight:1,padding:4}}>
+            x
+          </button>
+        </div>
+        <div style={{padding:"12px 0",flex:1}}>
+          {[
+            {icon:"🎵", label:"Guitar Tuner",  sub:"Tune before you play",   action:onTuner},
+            {icon:"📖", label:"Guitar Basics", sub:"8 lessons for beginners", action:onBasics},
+            {icon:"🔍", label:"Song Search",   sub:"70+ songs with tab",      action:onSongSearch},
+          ].map(({icon,label,sub,action})=>(
+            <button key={label} onClick={action}
+              style={{width:"100%",padding:"16px 20px",background:"none",border:"none",
+                cursor:"pointer",textAlign:"left",fontFamily:"sans-serif",
+                display:"flex",alignItems:"center",gap:14,
+                borderBottom:"1px solid "+C.fret}}>
+              <span style={{fontSize:22,flexShrink:0}}>{icon}</span>
+              <div>
+                <div style={{fontWeight:600,fontSize:14,color:C.text}}>{label}</div>
+                <div style={{fontSize:11,color:C.muted,marginTop:2}}>{sub}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <div style={{padding:"16px 20px",borderTop:"1px solid "+C.fret,fontSize:11,color:C.muted,textAlign:"center"}}>
+          GuitarTeacher - Learn at your own pace
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+function GuitarTuner({ onBack, onMenu }) {
+  const [listening, setListening] = useState(false);
+  const [detectedNote, setDetectedNote] = useState("");
+  const [detectedFreq, setDetectedFreq] = useState(0);
+  const [cents, setCents] = useState(0);
+  const [closestString, setClosestString] = useState(null);
+  const ctxRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(null);
+
+  const stopMic = useCallback(()=>{
+    if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());
+    if(rafRef.current) cancelAnimationFrame(rafRef.current);
+    if(ctxRef.current) ctxRef.current.close();
+    ctxRef.current=null; streamRef.current=null;
+    setListening(false); setDetectedNote(""); setDetectedFreq(0); setCents(0); setClosestString(null);
+  },[]);
+
+  const startMic = useCallback(async()=>{
+    if(listening){ stopMic(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 4096;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      ctxRef.current=ctx; streamRef.current=stream;
+      setListening(true);
+      const buf = new Float32Array(analyser.fftSize);
+      const loop = ()=>{
+        rafRef.current = requestAnimationFrame(loop);
+        analyser.getFloatTimeDomainData(buf);
+        const freq = autoCorrelate(buf, ctx.sampleRate);
+        if(freq > 60 && freq < 1200){
+          const midi = Math.round(12*Math.log2(freq/440)+69);
+          const name = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"][midi%12];
+          const oct = Math.floor(midi/12)-1;
+          const exactHz = 440*Math.pow(2,(midi-69)/12);
+          const c = Math.round(1200*Math.log2(freq/exactHz));
+          setDetectedNote(name+oct);
+          setDetectedFreq(Math.round(freq*10)/10);
+          setCents(c);
+          const closest = OPEN_STRINGS.reduce((best,s)=>{
+            const diff = Math.abs(freq - s.freq);
+            return diff < Math.abs(freq - best.freq) ? s : best;
+          }, OPEN_STRINGS[0]);
+          setClosestString(closest);
+        }
+      };
+      loop();
+    } catch(e){ alert("Mic access denied. Please allow microphone access and try again."); }
+  },[listening, stopMic]);
+
+  useEffect(()=>()=>stopMic(),[]);
+
+  const inTune = Math.abs(cents) <= 5;
+  const slightlyOff = Math.abs(cents) <= 15;
+  const needleAngle = Math.max(-45, Math.min(45, cents * 0.9));
+  const needleColor = inTune ? C.sage : slightlyOff ? C.amber : C.coral;
+  const tuneMsg = inTune ? "In tune!" : cents < 0 ? "Tune up" : "Tune down";
+  const tuneMsgColor = inTune ? C.sage : slightlyOff ? C.amber : C.coral;
+
+  return (
+    <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"sans-serif",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"18px 32px",borderBottom:"1px solid "+C.fret,display:"flex",alignItems:"center",gap:16}}>
+        <button onClick={onBack}
+          style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",padding:0,lineHeight:1}}>
+          ←
+        </button>
+        <div style={{fontWeight:800,fontSize:22}}>
+          <span style={{color:C.amber}}>Guitar</span><span>Teacher</span>
+          <span style={{fontWeight:600,fontSize:14,color:C.muted,marginLeft:8}}>/ Tuner</span>
+        </div>
+        <button onClick={()=>onMenu()}
+          style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",flexDirection:"column",gap:5}}>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+        </button>
+      </div>
+
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px 20px 60px"}}>
+        <div style={{maxWidth:480,width:"100%"}}>
+          <div style={{textAlign:"center",marginBottom:28}}>
+            <div style={{fontSize:13,color:C.muted,marginBottom:6}}>Pluck any string and tune to the closest note</div>
+          </div>
+
+          {/* Needle meter */}
+          <div style={{background:"#0A0A0E",borderRadius:16,padding:"28px 20px 20px",border:"1px solid "+C.fret,marginBottom:20,textAlign:"center"}}>
+            <svg width={300} height={160} style={{display:"block",margin:"0 auto",overflow:"visible"}}>
+              {/* Arc background */}
+              <path d="M 30 140 A 120 120 0 0 1 270 140" fill="none" stroke={C.fret} strokeWidth={8} strokeLinecap="round"/>
+              {/* Colored arc zones */}
+              <path d="M 30 140 A 120 120 0 0 1 75 50" fill="none" stroke="rgba(224,92,75,0.3)" strokeWidth={8} strokeLinecap="round"/>
+              <path d="M 75 50 A 120 120 0 0 1 118 22" fill="none" stroke="rgba(212,168,71,0.3)" strokeWidth={8} strokeLinecap="round"/>
+              <path d="M 118 22 A 120 120 0 0 1 182 22" fill="none" stroke="rgba(107,143,110,0.5)" strokeWidth={10} strokeLinecap="round"/>
+              <path d="M 182 22 A 120 120 0 0 1 225 50" fill="none" stroke="rgba(212,168,71,0.3)" strokeWidth={8} strokeLinecap="round"/>
+              <path d="M 225 50 A 120 120 0 0 1 270 140" fill="none" stroke="rgba(224,92,75,0.3)" strokeWidth={8} strokeLinecap="round"/>
+              {/* Center tick */}
+              <line x1={150} y1={25} x2={150} y2={40} stroke={C.sage} strokeWidth={2}/>
+              {/* Needle */}
+              {detectedFreq > 0 && (
+                <g transform={"rotate("+needleAngle+", 150, 140)"}>
+                  <line x1={150} y1={140} x2={150} y2={35} stroke={needleColor} strokeWidth={2.5} strokeLinecap="round"/>
+                  <circle cx={150} cy={140} r={6} fill={needleColor}/>
+                </g>
+              )}
+              {/* Center dot when no signal */}
+              {detectedFreq === 0 && (
+                <circle cx={150} cy={140} r={5} fill={C.fret}/>
+              )}
+              {/* Labels */}
+              <text x={18} y={155} fontSize={10} fill={C.muted} textAnchor="middle">-50</text>
+              <text x={150} y={18} fontSize={10} fill={C.sage} textAnchor="middle">0</text>
+              <text x={282} y={155} fontSize={10} fill={C.muted} textAnchor="middle">+50</text>
+            </svg>
+
+            {detectedFreq > 0 ? (
+              <>
+                <div style={{fontSize:48,fontWeight:800,color:needleColor,lineHeight:1,margin:"8px 0 4px"}}>{detectedNote}</div>
+                <div style={{fontSize:13,color:C.muted,marginBottom:6}}>{detectedFreq} Hz</div>
+                <div style={{fontSize:18,fontWeight:700,color:tuneMsgColor}}>{tuneMsg}</div>
+                {!inTune && (
+                  <div style={{fontSize:12,color:C.muted,marginTop:4}}>
+                    {Math.abs(cents)} cents {cents < 0 ? "flat" : "sharp"}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{fontSize:15,color:C.muted,marginTop:8}}>
+                {listening ? "Pluck a string..." : "Tap the mic to start"}
+              </div>
+            )}
+          </div>
+
+          {/* Closest string */}
+          {closestString && (
+            <div style={{background:"#0A0A0E",borderRadius:12,padding:"14px 20px",border:"1px solid "+(inTune?C.sage:C.fret),marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div>
+                <div style={{fontSize:12,color:C.muted,marginBottom:3}}>Closest string</div>
+                <div style={{fontSize:18,fontWeight:700,color:inTune?C.sage:C.text}}>
+                  String {closestString.string} - {closestString.name}
+                </div>
+                <div style={{fontSize:12,color:C.muted,marginTop:2}}>Target: {closestString.freq} Hz</div>
+              </div>
+              <div style={{fontSize:32}}>{inTune ? "✓" : cents < 0 ? "↑" : "↓"}</div>
+            </div>
+          )}
+
+          {/* String reference */}
+          <div style={{background:"#0A0A0E",borderRadius:12,padding:"16px 20px",border:"1px solid "+C.fret,marginBottom:24}}>
+            <div style={{fontSize:11,fontWeight:600,letterSpacing:"1.5px",textTransform:"uppercase",color:C.muted,marginBottom:12}}>Standard Tuning</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8}}>
+              {OPEN_STRINGS.map(s=>{
+                const isActive = closestString && closestString.note===s.note;
+                return (
+                  <div key={s.note} style={{textAlign:"center",padding:"8px 4px",borderRadius:8,
+                    background:isActive?(inTune?"rgba(107,143,110,0.15)":"rgba(212,168,71,0.1)"):"transparent",
+                    border:"1px solid "+(isActive?(inTune?C.sage:C.amber):C.fret)}}>
+                    <div style={{fontSize:16,fontWeight:800,color:isActive?(inTune?C.sage:C.amber):C.text}}>{s.name}</div>
+                    <div style={{fontSize:10,color:C.muted,marginTop:2}}>{s.note}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Mic button */}
+          <button onClick={startMic}
+            style={{width:"100%",padding:"14px",borderRadius:12,border:"2px solid "+(listening?C.coral:C.amber),
+              background:listening?"rgba(224,92,75,0.1)":"rgba(212,168,71,0.08)",
+              color:listening?C.coral:C.amber,fontFamily:"sans-serif",fontSize:15,fontWeight:700,
+              cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+            <span style={{fontSize:20}}>🎙️</span>
+            {listening ? "Stop Listening" : "Start Listening"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [splash, setSplash] = useState(true);
+  const [showTuner, setShowTuner] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [lesson, setLesson] = useState(0);
   const [listening, setListening] = useState(false);
   const [pitchNote, setPitchNote] = useState("");
@@ -914,12 +1155,27 @@ function App() {
 
   const css = "*{box-sizing:border-box;margin:0;padding:0} body{background:#1A1A1F} input::placeholder{color:#9A9490} p+p{margin-top:10px}";
 
+  if (showTuner) return <GuitarTuner onBack={()=>setShowTuner(false)} onMenu={()=>setMenuOpen(true)}/>;
+
   if (splash) return (
     <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"sans-serif",display:"flex",flexDirection:"column"}}>
       <style>{css}</style>
-      <div style={{padding:"18px 32px",borderBottom:"1px solid "+C.fret,fontWeight:800,fontSize:22}}>
-        <span style={{color:C.amber}}>Guitar</span><span>Teacher</span>
+      <div style={{padding:"18px 32px",borderBottom:"1px solid "+C.fret,fontWeight:800,fontSize:22,
+        display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div><span style={{color:C.amber}}>Guitar</span><span>Teacher</span></div>
+        <button onClick={()=>setMenuOpen(true)}
+          style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",flexDirection:"column",gap:5}}>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+        </button>
       </div>
+      {menuOpen && <HamburgerMenu
+        onTuner={()=>{setMenuOpen(false);setShowTuner(true);setSplash(false);}}
+        onBasics={()=>{setMenuOpen(false);setShowTuner(false);setSplash(false);go(0);}}
+        onSongSearch={()=>{setMenuOpen(false);setShowTuner(false);setSplash(false);go(7);}}
+        onClose={()=>setMenuOpen(false)}
+      />}
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px 80px"}}>
         <div style={{maxWidth:520,width:"100%",textAlign:"center"}}>
           <div style={{fontSize:50,marginBottom:14}}>🎸</div>
@@ -929,7 +1185,15 @@ function App() {
           <p style={{fontSize:15,color:"#C8C5BE",lineHeight:1.7,maxWidth:400,margin:"0 auto 32px"}}>
             Start from the very beginning or jump straight to playing songs you love.
           </p>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:12}}>
+            <button onClick={()=>setShowTuner(true)}
+              style={{background:C.bg2,border:"1px solid "+C.sage,borderRadius:14,padding:"22px 16px",
+                cursor:"pointer",textAlign:"left",fontFamily:"sans-serif",gridColumn:"1/-1"}}>
+              <div style={{fontSize:26,marginBottom:8}}>🎵</div>
+              <div style={{fontWeight:700,fontSize:15,color:C.text,marginBottom:5}}>Tune your guitar</div>
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Pluck a string and the tuner tells you if you are in tune. Always tune up before playing.</div>
+              <div style={{marginTop:12,fontSize:12,fontWeight:600,color:C.sage}}>Chromatic tuner - standard tuning</div>
+            </button>
             <button onClick={()=>go(0)}
               style={{background:C.bg2,border:"1px solid "+C.amber,borderRadius:14,padding:"22px 16px",
                 cursor:"pointer",textAlign:"left",fontFamily:"sans-serif"}}>
@@ -943,7 +1207,7 @@ function App() {
                 cursor:"pointer",textAlign:"left",fontFamily:"sans-serif"}}>
               <div style={{fontSize:26,marginBottom:8}}>🔍</div>
               <div style={{fontWeight:700,fontSize:15,color:C.text,marginBottom:5}}>Search any song</div>
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Know the basics? Search 32 songs and play with mic feedback.</div>
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Know the basics? Search 70+ songs and play with mic feedback.</div>
               <div style={{marginTop:12,fontSize:12,fontWeight:600,color:C.muted}}>Jump to lesson 8</div>
             </button>
           </div>
@@ -961,14 +1225,28 @@ function App() {
           style={{fontWeight:800,fontSize:21,background:"none",border:"none",cursor:"pointer",color:C.text,padding:0,fontFamily:"sans-serif"}}>
           <span style={{color:C.amber}}>Guitar</span><span>Teacher</span>
         </button>
-        <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:C.muted}}>
-          <span>{lesson+1}/{LESSONS.length}</span>
-          <div style={{width:100,height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}>
-            <div style={{height:"100%",background:C.amber,width:prog+"%",borderRadius:2,transition:"width 0.4s"}}/>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:C.muted}}>
+            <span>{lesson+1}/{LESSONS.length}</span>
+            <div style={{width:80,height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}>
+              <div style={{height:"100%",background:C.amber,width:prog+"%",borderRadius:2,transition:"width 0.4s"}}/>
+            </div>
           </div>
+          <button onClick={()=>setMenuOpen(true)}
+            style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",flexDirection:"column",gap:5}}>
+            <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+            <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+            <div style={{width:22,height:2,background:C.muted,borderRadius:1}}/>
+          </button>
         </div>
       </div>
 
+      {menuOpen && <HamburgerMenu
+        onTuner={()=>{setMenuOpen(false);setShowTuner(true);setSplash(false);}}
+        onBasics={()=>{setMenuOpen(false);setShowTuner(false);setSplash(false);setLesson(0);}}
+        onSongSearch={()=>{setMenuOpen(false);setShowTuner(false);setSplash(false);setLesson(7);}}
+        onClose={()=>setMenuOpen(false)}
+      />}
       <div style={{maxWidth:820,margin:"0 auto",padding:"28px 20px 150px"}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:24}}>
           {LESSONS.map((l,i)=>(
