@@ -406,11 +406,12 @@ function SongPlayer({ parts, detected, listening, onStartMic }) {
                 strokeWidth={isOpen?2.5:0}
                 opacity={opacity}/>
               <text x={cx} y={cy+5} textAnchor="middle" fontSize={14}
-                fill={isOpen?(isHit?C.sage:C.amber):"#1A1A1F"} fontWeight="800" fontFamily="monospace">
+                fill={isOpen?(isHit?"#1A1A1F":isCur?"#1A1A1F":C.amber):"#1A1A1F"}
+                fontWeight="900" fontFamily="monospace">
                 {ni+1}
               </text>
               {isCur && (
-                <text x={cx} y={cy-22} textAnchor="middle" fontSize={18}>🎸</text>
+                <text x={cx} y={cy-24} textAnchor="middle" fontSize={20}>🎸</text>
               )}
             </g>
           );
