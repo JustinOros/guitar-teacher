@@ -438,10 +438,10 @@ function SongPlayer({ parts, detected, listening, onStartMic }) {
                   {p.fret}
                 </text>
               )}
-              {/* Fret label below dot */}
-              <text x={cx} y={BOT+16} textAnchor="middle" fontSize={9}
-                fill={isCur?C.amber:C.fret} fontFamily="monospace">
-                {isOpen?"0":p.fret}
+              {/* Fret label above strings area */}
+              <text x={cx} y={TOP-6} textAnchor="middle" fontSize={9}
+                fill={isCur?C.amber:C.muted} fontFamily="monospace">
+                {isOpen?"open":("fr"+p.fret)}
               </text>
               {isCur && (
                 <text x={cx} y={TOP-16} textAnchor="middle" fontSize={20}>🎸</text>
