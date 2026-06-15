@@ -433,11 +433,19 @@ function SongPlayer({ parts, detected, listening, onStartMic }) {
                 stroke={isOpen?(isHit?C.sage:isCur?C.amber:C.amber):"none"}
                 strokeWidth={isOpen?2.5:0}
                 opacity={opacity}/>
-              <text x={cx} y={cy+5} textAnchor="middle" fontSize={14}
-                fill={isOpen?(isHit?"#1A1A1F":isCur?"#1A1A1F":C.amber):"#1A1A1F"}
-                fontWeight="900" fontFamily="monospace">
-                {ni+1}
-              </text>
+              {!isOpen && (
+                <text x={cx} y={cy+5} textAnchor="middle" fontSize={14}
+                  fill={isHit?"#1A1A1F":isCur?"#1A1A1F":"#1A1A1F"}
+                  fontWeight="900" fontFamily="monospace">
+                  {ni+1}
+                </text>
+              )}
+              {isOpen && (isHit||isCur) && (
+                <text x={cx} y={cy+5} textAnchor="middle" fontSize={12}
+                  fill="#1A1A1F" fontWeight="900" fontFamily="monospace">
+                  0
+                </text>
+              )}
               {isCur && (
                 <text x={cx} y={cy-24} textAnchor="middle" fontSize={20}>🎸</text>
               )}
@@ -478,9 +486,9 @@ function SongPlayer({ parts, detected, listening, onStartMic }) {
               const p = NOTE_FRET_MAP[n];
               return (
                 <div key={i} style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:C.muted}}>
-                  <span style={{color:C.amber,fontWeight:700}}>{i+1}</span>
+                  {p&&p.fret!==0&&<span style={{color:C.amber,fontWeight:700}}>{i+1}</span>}
                   <span style={{fontFamily:"monospace",color:C.text}}>{n}</span>
-                  {p&&<span style={{color:C.muted}}>({STRING_NAMES[p.str]} fr{p.fret})</span>}
+                  {p&&<span style={{color:C.muted}}>{p.fret===0?"(open "+STRING_NAMES[p.str]+")":"("+STRING_NAMES[p.str]+" fr"+p.fret+")"}</span>}
                 </div>
               );
             })}
