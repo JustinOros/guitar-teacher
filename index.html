@@ -1547,46 +1547,36 @@ function App() {
             </p>
           </div>
 
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            {/* Tune your guitar */}
-            <button onClick={()=>setShowTuner(true)}
-              style={{background:C.bg2,border:"1px solid "+C.sage,borderRadius:16,padding:"20px 22px",
-                cursor:"pointer",textAlign:"left",fontFamily:"sans-serif",
-                display:"flex",alignItems:"center",gap:18}}>
-              <div style={{fontSize:36,flexShrink:0}}>🎵</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:16,color:C.text,marginBottom:3}}>Tune your guitar</div>
-                <div style={{fontSize:13,color:C.muted,lineHeight:1.5}}>Get in tune before you play. Pluck a string and the tuner guides you.</div>
+          {(()=>{
+            const [hovered, setHovered] = React.useState(null);
+            const cards = [
+              {key:"tuner",  icon:"🎵", title:"Tune your guitar",  desc:"Get in tune before you play. Pluck a string and the tuner guides you.",   action:()=>setShowTuner(true)},
+              {key:"basics", icon:"📖", title:"Start from basics", desc:"New to guitar? Learn step by step from the very beginning.",               action:()=>go(0)},
+              {key:"search", icon:"🔍", title:"Search any song",   desc:"Already know the basics? Find a song and play along with the mic.",       action:()=>go(7)},
+            ];
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {cards.map(({key,icon,title,desc,action})=>(
+                  <button key={key} onClick={action}
+                    onMouseEnter={()=>setHovered(key)}
+                    onMouseLeave={()=>setHovered(null)}
+                    style={{background:C.bg2,
+                      border:"1px solid "+(hovered===key?C.sage:C.amber),
+                      borderRadius:16,padding:"20px 22px",
+                      cursor:"pointer",textAlign:"left",fontFamily:"sans-serif",
+                      display:"flex",alignItems:"center",gap:18,
+                      transition:"border-color 0.2s"}}>
+                    <div style={{fontSize:36,flexShrink:0}}>{icon}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:16,color:C.text,marginBottom:3}}>{title}</div>
+                      <div style={{fontSize:13,color:C.muted,lineHeight:1.5}}>{desc}</div>
+                    </div>
+                    <div style={{color:hovered===key?C.sage:C.amber,fontSize:20,flexShrink:0,transition:"color 0.2s"}}>›</div>
+                  </button>
+                ))}
               </div>
-              <div style={{color:C.sage,fontSize:20,flexShrink:0}}>›</div>
-            </button>
-
-            {/* Start from basics */}
-            <button onClick={()=>go(0)}
-              style={{background:C.bg2,border:"1px solid "+C.amber,borderRadius:16,padding:"20px 22px",
-                cursor:"pointer",textAlign:"left",fontFamily:"sans-serif",
-                display:"flex",alignItems:"center",gap:18}}>
-              <div style={{fontSize:36,flexShrink:0}}>📖</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:16,color:C.text,marginBottom:3}}>Start from basics</div>
-                <div style={{fontSize:13,color:C.muted,lineHeight:1.5}}>New to guitar? Learn step by step from the very beginning.</div>
-              </div>
-              <div style={{color:C.amber,fontSize:20,flexShrink:0}}>›</div>
-            </button>
-
-            {/* Search any song */}
-            <button onClick={()=>go(7)}
-              style={{background:C.bg2,border:"1px solid "+C.fret,borderRadius:16,padding:"20px 22px",
-                cursor:"pointer",textAlign:"left",fontFamily:"sans-serif",
-                display:"flex",alignItems:"center",gap:18}}>
-              <div style={{fontSize:36,flexShrink:0}}>🎵</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:16,color:C.text,marginBottom:3}}>Search any song</div>
-                <div style={{fontSize:13,color:C.muted,lineHeight:1.5}}>Already know the basics? Find a song and play along with the mic.</div>
-              </div>
-              <div style={{color:C.muted,fontSize:20,flexShrink:0}}>›</div>
-            </button>
-          </div>
+            );
+          })()}
         </div>
       </div>
     </div>
